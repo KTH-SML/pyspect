@@ -232,3 +232,7 @@ class TLT(Generic[I, R]):
 
     def iter_free(self):
         yield from filter(lambda p: self._lmap[p] is None, self._lmap)
+
+
+def Identity(arg: TLTLike) -> TLT:
+    return TLT.construct(arg)
