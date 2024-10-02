@@ -26,6 +26,14 @@ __all__ = (
 UNTIL = Language.declare('UNTIL')
 ALWAYS = Language.declare('ALWAYS')
 
+def Until(lhs: TLTLike, rhs: TLTLike) -> TLT:
+    with UNTIL.In(TLT):
+        return TLT.construct(UNTIL('_1', '_2'), _1=lhs, _2=rhs)
+
+def Always(arg: TLTLike) -> TLT:
+    with ALWAYS.In(TLT):
+        return TLT.construct(ALWAYS('_1'), _1=arg)
+
 class ReachAvoid(UNTIL, ALWAYS):
 
     R = TypeVar('R')
@@ -60,12 +68,6 @@ class ReachAvoid(UNTIL, ALWAYS):
     def _check__ALWAYS(a: APPROXDIR) -> APPROXDIR:
         a0 = APPROXDIR.UNDER
         return (APPROXDIR.INVALID if a != a0 else a)
-    
-def Until(lhs: TLTLike, rhs: TLTLike) -> TLT:
-    return TLT.construct(UNTIL('_1', '_2'), _1=lhs, _2=rhs)
-
-def Always(arg: TLTLike) -> TLT:
-    return TLT.construct(ALWAYS('_1'), _1=arg)
 
 
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##

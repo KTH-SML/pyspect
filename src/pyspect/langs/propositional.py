@@ -23,7 +23,8 @@ __all__ = (
 NOT = Language.declare('NOT')
 
 def Not(arg: TLTLike) -> TLT:
-    return TLT.construct(NOT('_1'), _1=arg)
+    with NOT.In(TLT):
+        return TLT.construct(NOT('_1'), _1=arg)
 
 class Complement(NOT):
 
@@ -51,7 +52,8 @@ AND = Language.declare('AND')
 def And(lhs: TLTLike, rhs: TLTLike, *args: TLTLike) -> TLT:
     if args:
         lhs, rhs = And(lhs, rhs, *args[:-1]), args[-1]
-    return TLT.construct(AND('_1', '_2'), _1=lhs, _2=rhs)
+    with AND.In(TLT):
+        return TLT.construct(AND('_1', '_2'), _1=lhs, _2=rhs)
 
 class Intersection(AND):
 
@@ -81,7 +83,8 @@ OR = Language.declare('OR')
 def Or(lhs: TLTLike, rhs: TLTLike, *args: TLTLike) -> TLT:
     if args:
         lhs, rhs = Or(lhs, rhs, *args[:-1]), args[-1]
-    return TLT.construct(OR('_1', '_2'), _1=lhs, _2=rhs)
+    with OR.In(TLT):
+        return TLT.construct(OR('_1', '_2'), _1=lhs, _2=rhs)
 
 class Union(OR):
 
@@ -109,10 +112,10 @@ class Union(OR):
 ## Propositional
 
 def Minus(lhs: TLTLike, rhs: TLTLike) -> TLT:
-    return TLT.construct(AND('_1', NOT('_2')), _1=lhs, _2=rhs)
+    return And(lhs, Not(rhs))
 
 def Implies(lhs: TLTLike, rhs: TLTLike) -> TLT:
-    return TLT.construct(OR(NOT('_2'), '_1'), _1=lhs, _2=rhs)
+    return Or(lhs, Not(rhs))
 
 class Propositional(
     Complement,

@@ -69,18 +69,9 @@ LabellingMap = idict[str, Optional[SetBuilder]]
    
 
 I, R = TypeVar('I'), TypeVar('R')
-class TLT(Generic[I, R]):
-
-    __language__ = Void
+class TLT(LanguageUser, Generic[I, R]):
 
     __debug = {}
-
-    @classmethod
-    def select(cls, lang: Language):
-        # We confirm that all abstracts are implemented
-        assert lang.is_complete(), \
-            f'{lang.__name__} is not complete, missing: {", ".join(lang.__abstractmethods__)}'
-        cls.__language__ = lang
 
     @classmethod
     def debug(cls, **kwds):

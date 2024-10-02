@@ -1,10 +1,12 @@
 from abc import ABCMeta, abstractmethod
-from typing import Generic, Union, Tuple, Set, Dict, Any
+from typing import Union, Tuple, Set, Dict, Any
+from contextlib import contextmanager
 
 __all__ = (
     'Expr',
     'Void',
     'Language',
+    'LanguageUser',
 )
 
 class ImplClientMeta(type):
@@ -114,7 +116,26 @@ class Language(ABCMeta, ImplClientMeta, type):
     def is_complete(cls) -> bool:
         return not bool(cls.__abstractmethods__)
 
+    @contextmanager    
+    def In(cls, usr: 'LanguageUser'):
+        cls_name = cls.__name__
+        usr_name = usr.__language__.__name__
+        assert issubclass(usr.__language__, cls), \
+            f'Selected language "{usr_name}" does not support {cls_name}'
+        yield
+
 # The Void language is a singleton for a trivial language that 
 # puts no restriction on the implementation. It has only one 
 # purpose, to be the by default selected language of TLTs.
 Void = Language('Void', (), {})
+
+class LanguageUser:
+
+    __language__: Language = Void
+
+    @classmethod
+    def select(cls, lang: Language):
+        # We confirm that all abstracts are implemented
+        assert lang.is_complete(), \
+            f'{lang.__name__} is not complete, missing: {", ".join(lang.__abstractmethods__)}'
+        cls.__language__ = lang
