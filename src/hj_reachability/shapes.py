@@ -152,6 +152,12 @@ def rectangle(grid: Grid, target_min, target_max, axes=None):
         data = intersection(data, patch)
     return data
 
+def point(grid: Grid, z):
+    bounds = [(x - grid.spacings[i]/2, x + grid.spacings[i]/2)
+              for i, x in enumerate(z)]
+    target_min, target_max = zip(*bounds)
+    return rectangle(grid, target_min=target_min, target_max=target_max)
+
 def cylinder(grid: Grid, center, axes, radius):
     """Creates an axis align cylinder implicit surface function
 
