@@ -1,5 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import TypeVar, Generic
+from typing import TYPE_CHECKING, TypeVar, Generic
+
+if TYPE_CHECKING:
+    from typing_protocol_intersection import ProtocolIntersection as Has
 
 from ..set_builder import *
 from ..tlt import *
@@ -37,7 +40,7 @@ class Complement(NOT):
 
     @staticmethod
     def _apply__NOT(sb: SetBuilder) -> SetBuilder:
-        return lambda impl, **m: impl.complement(sb(impl, **m))
+        return AppliedSet('complement', sb)
     
     @staticmethod
     def _check__NOT(a: APPROXDIR) -> APPROXDIR:
@@ -66,7 +69,7 @@ class Intersection(AND):
 
     @staticmethod
     def _apply__AND(sb1: SetBuilder, sb2: SetBuilder) -> SetBuilder:
-        return lambda impl, **m: impl.intersect(sb1(impl, **m), sb2(impl, **m))
+        return AppliedSet('intersect', sb1, sb2)
     
     @staticmethod
     def _check__AND(a1: APPROXDIR, a2: APPROXDIR) -> APPROXDIR:
@@ -97,7 +100,7 @@ class Union(OR):
 
     @staticmethod
     def _apply__OR(sb1: SetBuilder, sb2: SetBuilder) -> SetBuilder:
-        return lambda impl, **m: impl.union(sb1(impl, **m), sb2(impl, **m))
+        return AppliedSet('union', sb1, sb2)
     
     @staticmethod
     def _check__OR(a1: APPROXDIR, a2: APPROXDIR) -> APPROXDIR:

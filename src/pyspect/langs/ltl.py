@@ -34,7 +34,7 @@ def Always(arg: TLTLike) -> TLT:
     with ALWAYS.In(TLT):
         return TLT.construct(ALWAYS('_1'), _1=arg)
 
-class ReachAvoid(UNTIL, ALWAYS):
+class ReachAvoid(Complement, UNTIL, ALWAYS):
 
     R = TypeVar('R')
     class Impl(ABC, Generic[R]):
@@ -49,7 +49,7 @@ class ReachAvoid(UNTIL, ALWAYS):
 
     @staticmethod
     def _apply__UNTIL(sb1: SetBuilder, sb2: SetBuilder) -> SetBuilder:
-        return lambda impl, **m: impl.reach(sb2(impl, **m), sb1(impl, **m))
+        return AppliedSet('reach', sb2, sb1)
     
     @staticmethod
     def _check__UNTIL(a1: APPROXDIR, a2: APPROXDIR) -> APPROXDIR:
@@ -58,11 +58,7 @@ class ReachAvoid(UNTIL, ALWAYS):
     
     @staticmethod
     def _apply__ALWAYS(sb: SetBuilder) -> SetBuilder:
-        return lambda impl, **m: impl.complement(
-            impl.avoid(
-                impl.complement(sb(impl, **m))
-            )
-        )
+        return AppliedSet('complement', AppliedSet('avoid', AppliedSet('complement', sb)))
     
     @staticmethod
     def _check__ALWAYS(a: APPROXDIR) -> APPROXDIR:

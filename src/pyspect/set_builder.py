@@ -16,6 +16,9 @@ __all__ = (
 )
 
 class SetBuilder:
+
+    free: tuple[str, ...] = ()
+
     def __call__(self, impl, **lmap): ...
 
     def __repr__(self):
@@ -36,18 +39,21 @@ class Set(SetBuilder):
 
 class ReferredSet(SetBuilder):
     def __init__(self, name):
-        self.name = name
+        self.free += (name,)
     def __call__(self, impl, **lmap):
-        sb = lmap.pop(self.name)
+        name, = self.free
+        sb = lmap.pop(name)
         return sb(impl, **lmap)
 
 class AppliedSet(SetBuilder):
-    def __init__(self, name, *builders):
-        self.name = name
+    def __init__(self, funcname, *builders: SetBuilder):
+        self.funcname = funcname
         self.builders = builders
+        for builder in self.builders:
+            self.free += tuple(name for name in builder.free if name not in self.free)
     def __call__(self, impl, **m):
         args = [sb(impl, **m) for sb in self.builders]
-        sb = getattr(impl, self.name)
+        sb = getattr(impl, self.funcname)
         return sb(*args)
     def find(self, cls):
         yield from super().find(cls)
