@@ -5,8 +5,7 @@ __all__ = (
     'idict',
 )
 
-KT, VT = TypeVar('KT'), TypeVar('VT')
-class idict(Mapping, Generic[KT, VT]):
+class idict[KT, VT](Mapping):
     """Immutable Dictionary."""
 
     _data: Dict[KT, VT]

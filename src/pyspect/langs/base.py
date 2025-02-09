@@ -1,100 +1,56 @@
-from abc import ABCMeta, abstractmethod
-from typing import Union, Tuple, Set, Dict, Any
+from abc import ABCMeta
+from typing import ClassVar, Self, Optional, Union, Tuple, Set, Dict, Any
 from contextlib import contextmanager
 
 __all__ = (
     'Expr',
+    'canonicalize',
+    'LanguageFragmentMeta',
     'Void',
-    'Language',
-    'LanguageUser',
 )
-
-class ImplClientMeta(type):
-
-    Impl: type
-
-    def __new__(mcs, name: str, bases: Tuple[type, ...], namespace: Dict[str, Any]) -> 'Language':
-
-        ## Dynamic Construction of Inherited Implementations ## 
-        
-        impls = []
-
-        # Check if current namespace has an Impl
-        if 'Impl' in namespace:
-            impls.append(namespace.pop('Impl'))
-        
-        # Collect all Impls from base classes
-        for base in bases:
-            Impl = getattr(base, 'Impl', None)
-            if Impl is not None:
-                impls.append(Impl)
-
-        # Construct the new Impl
-        namespace['Impl'] = type(f'Impl{name}', tuple(impls), {
-            '__module__': '<dynamic>',
-        })
-
-        try:
-            return super().__new__(mcs, name, bases, namespace)
-        except TypeError as e:
-            print(impls)
-            for impl in impls:
-                print(impl.__qualname__, dir(impl))
-            raise e
 
 BiOp = Tuple[str, 'Expr', 'Expr'] 
 UnOp = Tuple[str, 'Expr']
-Term = Tuple[str]
+Term = Tuple[str] | str
 Expr = Union[BiOp, UnOp, Term]
 
-class Language(ABCMeta, ImplClientMeta, type):
+def canonicalize(expr: Expr) -> Expr:
+    if isinstance(expr, str): return (expr,)
+    assert isinstance(expr, tuple), 'Invalid expression'
+    assert 1 <= len(expr) <= 3, 'Invalid expression'
+    head, *tail = expr
+    return (head, *map(canonicalize, tail))
 
-    __declared__: bool
-    __fragments__: Set[str]
+class LanguageFragmentMeta(ABCMeta, type):
 
-    @classmethod
-    def declare(mcs, name: str) -> 'Language':
-        return mcs(name, (), {
-            '_declared': True, # indicates direct declaration
-            f'_apply__{name}': abstractmethod(lambda self: None),
-            f'_check__{name}': abstractmethod(lambda self: None),
-        })
+    # Cannot be set. Indicates if the fragment is a single primitive operator
+    __isprimitive__: ClassVar[bool]
+
+    # Cannot be set. For complex fragments, this contains all necessary primitive operators
+    __primitives__: ClassVar[tuple[str, ...]]
     
-    def __new__(mcs, name: str, bases: Tuple[type, ...], namespace: Dict[str, Any]) -> 'Language':
+    # Can be set. Default behavior for __new__ (either creates a formula or TLT)
+    __default__: ClassVar[Optional[str]]
     
-        ##  Mark Direct Declaration ##
+    def __new__(mcs, name: str, bases: Tuple[type, ...], namespace: Dict[str, Any]):
+    
+        ##  Parameters ##
 
-        namespace['__declared__'] = namespace.pop('_declared', False)
+        _isprimitive = namespace.setdefault('__isprimitive__', False)
+        _primitives = namespace.setdefault('__primitives__', ())
+        _default = namespace.setdefault('__default__', None)
 
-        ## Check Supported Language Fragments ##
+        ## Check Required Primitives ##
+        primitives = set(_primitives)
+        if _isprimitive:
+            primitives.add(name)
+        else:
+            for base in bases:
+                if isinstance(base, LanguageFragmentMeta):
+                    primitives = primitives.union(base.__primitives__)
 
-        apply_funcs = []
-        check_funcs = []
-        
-        # Collect all `_apply__*` and `_check__*` methods
-        for member in namespace.keys():
-            if member.startswith('_apply__'):
-                apply_funcs.append(member[len('_apply__'):])
-            elif member.startswith('_check__'):
-                check_funcs.append(member[len('_check__'):])
-        
-        # To be recognized as a language fragment, both
-        # methods need to exist. For example, "A" is a
-        # language fragment iff the language class has 
-        # both `_apply__A` and `_check__A`.
-        fragments = set(apply_funcs) & set(check_funcs)
-
-        # Collect inherited fragments
-        # NOTE: For now, we only inherit fragments from 
-        #       language types.
-        for base in bases:
-            if isinstance(base, Language):
-                fragments |= base.__fragments__
-
-        # Assign fragments to the newly constructed language class
-        namespace['__fragments__'] = fragments
-
-        ## Return Language Fragment Type ##
+        # Assign primitives to the newly constructed language class
+        namespace['__primitives__'] = tuple(primitives)
 
         return super().__new__(mcs, name, bases, namespace)                
 
@@ -102,40 +58,41 @@ class Language(ABCMeta, ImplClientMeta, type):
         return f"<language '{cls.__name__}'>"
     
     def __call__(cls, *args, **kwds) -> Expr:
-        if cls.__declared__:
-            ## Easy Formula Creation ##
-            
-            # NOTE: This overrides the ability to instantiate objects,
-            #       but this is not necessary for the language classes
-            #       which we only use for type checking purposes.
 
+        # NOTE: This overrides the ability to instantiate objects,
+        #       but this is not necessary for the language classes
+        #       which we only use for type checking purposes.
+
+        if cls.__isprimitive__:
+            # Creates a formula based on the primitive
             return (cls.__name__, *args)
+        if cls.__default__ is not None:
+            name = f'__new_{cls.__default__}__'
+            __new__ = getattr(cls, name, None)
+            if __new__ is None:
+                raise TypeError(f'Default is set to {cls.__default__}, but {name} does not exist.')
+            return __new__(*args, **kwds)
         else:
+            # Use default behavior (instantiating the object)
             return super().__call__(*args, **kwds)
     
     def is_complete(cls) -> bool:
         return not bool(cls.__abstractmethods__)
 
-    @contextmanager    
-    def In(cls, usr: 'LanguageUser'):
-        cls_name = cls.__name__
-        usr_name = usr.__language__.__name__
-        assert issubclass(usr.__language__, cls), \
-            f'Selected language "{usr_name}" does not support {cls_name}'
-        yield
+    def is_modelling(cls, formula: Expr) -> bool:
+        if isinstance(formula, str): return True
+        match formula:
+            case (prop,):
+                return True
+            case (op, rhs): 
+                return (False if op not in cls.__primitives__ else 
+                        cls.is_modelling(rhs))
+            case (op, lhs, rhs):
+                return (False if op not in cls.__primitives__ else 
+                        cls.is_modelling(lhs) and cls.is_modelling(rhs))
 
-# The Void language is a singleton for a trivial language that 
+
+# The Void fragment is a singleton for a trivial language that 
 # puts no restriction on the implementation. It has only one 
 # purpose, to be the by default selected language of TLTs.
-Void = Language('Void', (), {})
-
-class LanguageUser:
-
-    __language__: Language = Void
-
-    @classmethod
-    def select(cls, lang: Language):
-        # We confirm that all abstracts are implemented
-        assert lang.is_complete(), \
-            f'{lang.__name__} is not complete, missing: {", ".join(lang.__abstractmethods__)}'
-        cls.__language__ = lang
+Void = LanguageFragmentMeta('Void', (), {})

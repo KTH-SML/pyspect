@@ -1,8 +1,14 @@
 ######################################################################
 ## Set Builder
 
-from typing import TypeVar, Callable, Tuple, Dict
-from .langs.base import ImplClientMeta
+from abc import ABCMeta, abstractmethod
+from typing import TYPE_CHECKING, Self, Never
+
+if TYPE_CHECKING:
+    from typing_protocol_intersection import ProtocolIntersection as All
+
+from .impls.protos import *
+from .impls.base import *
 
 __all__ = (
     'SetBuilder',
@@ -15,69 +21,100 @@ __all__ = (
     'BoundedSet',
 )
 
-class SetBuilder:
+
+## ## ## ## ## ## ## ##
+## Special Primitives
+
+class SetBuilderMeta(ImplClientMeta, ABCMeta, type): ...
+
+class SetBuilder[R, I](ImplClient, metaclass=SetBuilderMeta):
 
     free: tuple[str, ...] = ()
 
-    def __call__(self, impl, **lmap): ...
+    @abstractmethod
+    def __call__(self, impl: I, **m: Self) -> Never | R: ...
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         cls = type(self)
         ptr = hash(self)
         return f'<{cls.__name__} at {ptr:#0{18}x}>'
 
-class AbsurdSet(SetBuilder):
-    def __call__(self, impl, **lmap):
+class AbsurdSet[R, I](SetBuilder[R, I]):
+    
+    def __call__(self, impl: I, **m: SetBuilder[R, I]) -> Never:
         raise ValueError("Cannot realize the absurd set.")
-ABSURD = AbsurdSet()
 
-class Set(SetBuilder):
-    def __init__(self, arg):
+ABSURD: AbsurdSet = AbsurdSet()
+
+class Set[R, I](SetBuilder[R, I]):
+
+    def __init__(self, arg: R) -> None:
         self.arg = arg
-    def __call__(self, impl, **lmap):
+
+    def __call__(self, impl: I, **m: SetBuilder[R, I]) -> R:
         return self.arg
 
-class ReferredSet(SetBuilder):
-    def __init__(self, name):
-        self.free += (name,)
-    def __call__(self, impl, **lmap):
-        name, = self.free
-        sb = lmap.pop(name)
-        return sb(impl, **lmap)
+class ReferredSet[R, I](SetBuilder[R, I]):
 
-class AppliedSet(SetBuilder):
-    def __init__(self, funcname, *builders: SetBuilder):
+    def __init__(self, name: str) -> None:
+        self.free += (name,)
+
+    def __call__(self, impl: I, **m: SetBuilder[R, I]) -> Never | R:
+        name, = self.free
+        sb = m.pop(name)
+        return sb(impl, **m)
+
+class AppliedSet[R, I](SetBuilder[R, I]):
+
+    def __init__(self, funcname: str, *builders: SetBuilder[R, I]) -> None:
         self.funcname = funcname
         self.builders = builders
+        
+        _require = (funcname,)
+
         for builder in self.builders:
+            _require += builder.__require__
             self.free += tuple(name for name in builder.free if name not in self.free)
-    def __call__(self, impl, **m):
+
+        self.add_requirements(_require)        
+
+    def __call__(self, impl: I, **m: SetBuilder[R, I]) -> Never | R:
         args = [sb(impl, **m) for sb in self.builders]
-        sb = getattr(impl, self.funcname)
-        return sb(*args)
-    def find(self, cls):
-        yield from super().find(cls)
-        for sb in self.builders:
-            yield from sb.find(cls)
+        func = getattr(impl, self.funcname)
+        return func(*args)
 
 
+## ## ## ## ## ## ## ## ## ##
+## User-friendly Primitives
 
-class EmptySet(SetBuilder):
-    def __call__(self, impl, **lmap):
+class EmptySet[R, I: HasEmpty](SetBuilder[R, I]):
+
+    __require__ = ('empty',)
+    
+    def __call__(self, impl: I, **m: SetBuilder[R, I]) -> R:
         return impl.empty()
-EMPTY = EmptySet()
+    
+EMPTY: EmptySet = EmptySet()
 
-class HalfSpaceSet(SetBuilder):
-    def __init__(self, *args, **kwds):
+class HalfSpaceSet[R, I: HasPlaneCut, **P](SetBuilder[R, I]):
+
+    __require__ = ('plane_cut',)
+
+    def __init__(self, *args: P.args, **kwds: P.kwargs) -> None:
         self.args = args
         self.kwds = kwds
-    def __call__(self, impl, **lmap):
+    
+    def __call__(self, impl: I, **m: SetBuilder[R, I]) -> R:
         return impl.plane_cut(*self.args, **self.kwds)
 
-class BoundedSet(SetBuilder):
-    def __init__(self, **bounds):
+class BoundedSet[R, I](SetBuilder[R, I]):
+
+    __require__ = ('complement','plane_cut', 'intersect')
+
+    def __init__(self, **bounds: list[int]) -> None:
         self.bounds = bounds
-    def __call__(self, impl, **lmap):
+
+    def __call__(self, impl: I, **m: SetBuilder[R, I]) -> R:
         s = impl.complement(impl.empty())
         _bounds = [(vmin, vmax, impl.axis(name))
                    for name, (vmin, vmax) in self.bounds.items()]

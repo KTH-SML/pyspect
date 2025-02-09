@@ -1,109 +1,94 @@
-from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, TypeVar, Generic
-
-if TYPE_CHECKING:
-    from typing_protocol_intersection import ProtocolIntersection as Has
+######################################################################
+## Propositional Language Fragments
 
 from ..set_builder import *
+from ..impls.base import *
 from ..tlt import *
 from .base import *
+from .tools import *
 
 __all__ = (
     ## Primitives
     'NOT', 'AND', 'OR',
-    ## Derivatives
-    'Complement', 'Intersection', 'Union',
-    'Propositional',
-    ## TLT Operators
+    ## TLT Operators and Fragments
     'Not', 'And', 'Or',
     'Minus', 'Implies',
+    'Propositional',
 )
 
 
-## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
-## Complement
+## ## ## ## ## ## ## ##
+## NOT / Complement
 
-NOT = Language.declare('NOT')
+NOT = declare('NOT')
 
-def Not(arg: TLTLike) -> TLT:
-    with NOT.In(TLT):
-        return TLT.construct(NOT('_1'), _1=arg)
+class Not[R, I: Impl](NOT):
 
-class Complement(NOT):
-
-    R = TypeVar('R')
-    class Impl(ABC, Generic[R]):
-    
-        R = TypeVar('R')
-        @abstractmethod
-        def complement(self, arg: R) -> R: ...
+    __default__ = 'NOT'
+    __require__ = ('complement',)
 
     @staticmethod
-    def _apply__NOT(sb: SetBuilder) -> SetBuilder:
+    def __new_NOT__(arg: TLTLike[R, I]) -> TLT[R, I]:
+        return TLT(NOT('_1'), _1=arg)
+
+    @staticmethod
+    def __apply_NOT__(sb: SetBuilder[R, I]) -> SetBuilder[R, I]:
         return AppliedSet('complement', sb)
     
     @staticmethod
-    def _check__NOT(a: APPROXDIR) -> APPROXDIR:
+    def __check_NOT__(a: APPROXDIR) -> APPROXDIR:
         return -1 * a
 
 
-## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
-## Intersection
+## ## ## ## ## ## ## ## ##
+## AND / Intersection
 
-AND = Language.declare('AND')
+AND = declare('AND')
 
-def And(lhs: TLTLike, rhs: TLTLike, *args: TLTLike) -> TLT:
-    if args:
-        lhs, rhs = And(lhs, rhs, *args[:-1]), args[-1]
-    with AND.In(TLT):
-        return TLT.construct(AND('_1', '_2'), _1=lhs, _2=rhs)
+class And[R, I: Impl](AND):
 
-class Intersection(AND):
-
-    R = TypeVar('R')
-    class Impl(ABC, Generic[R]):
-        
-        R = TypeVar('R')
-        @abstractmethod
-        def intersect(self, lhs: R, rhs: R) -> R: ...
+    __default__ = 'AND'
 
     @staticmethod
-    def _apply__AND(sb1: SetBuilder, sb2: SetBuilder) -> SetBuilder:
-        return AppliedSet('intersect', sb1, sb2)
+    def __new_AND__(lhs: TLTLike[R, I], rhs: TLTLike[R, I], *args: TLTLike[R, I]) -> TLT[R, I]:
+        if args:
+            lhs, rhs = And(lhs, rhs, *args[:-1]), args[-1]
+        return TLT(AND('_1', '_2'), _1=lhs, _2=rhs)
+
+    @staticmethod
+    def __apply_AND__(sb1: SetBuilder[R, I], sb2: SetBuilder[R, I]) -> SetBuilder[R, I]:
+        x = AppliedSet('intersect', sb1, sb2)
+        return x
     
     @staticmethod
-    def _check__AND(a1: APPROXDIR, a2: APPROXDIR) -> APPROXDIR:
+    def __check_AND__(a1: APPROXDIR, a2: APPROXDIR) -> APPROXDIR:
         return (APPROXDIR.INVALID if APPROXDIR.INVALID in (a1, a2) else 
                 APPROXDIR.INVALID if APPROXDIR.UNDER in (a1, a2) else
                 APPROXDIR.OVER)
 
 
-## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
-## Union
+## ## ## ## ## ##
+## OR / Union
 
-OR = Language.declare('OR')
+OR = declare('OR')
 
-def Or(lhs: TLTLike, rhs: TLTLike, *args: TLTLike) -> TLT:
-    if args:
-        lhs, rhs = Or(lhs, rhs, *args[:-1]), args[-1]
-    with OR.In(TLT):
-        return TLT.construct(OR('_1', '_2'), _1=lhs, _2=rhs)
+class Or[R, I](OR):
 
-class Union(OR):
-
-    R = TypeVar('R')
-    class Impl(ABC, Generic[R]):
-
-        R = TypeVar('R')
-        @abstractmethod
-        def union(self, lhs: R, rhs: R) -> R: ...
+    __default__ = 'OR'
+    __require__ = ('union',)
 
     @staticmethod
-    def _apply__OR(sb1: SetBuilder, sb2: SetBuilder) -> SetBuilder:
+    def __new_OR__(lhs: TLTLike[R, I], rhs: TLTLike[R, I], *args: TLTLike[R, I]) -> TLT[R, I]:
+        if args:
+            lhs, rhs = Or(lhs, rhs, *args[:-1]), args[-1]
+        return TLT(OR('_1', '_2'), _1=lhs, _2=rhs)
+
+    @staticmethod
+    def __apply_OR__(sb1: SetBuilder[R, I], sb2: SetBuilder[R, I]) -> SetBuilder[R, I]:
         return AppliedSet('union', sb1, sb2)
     
     @staticmethod
-    def _check__OR(a1: APPROXDIR, a2: APPROXDIR) -> APPROXDIR:
+    def __check_OR__(a1: APPROXDIR, a2: APPROXDIR) -> APPROXDIR:
         return (APPROXDIR.INVALID if APPROXDIR.INVALID in (a1, a2) else
                 a1 if a1 == a2 else
                 a2 if a1 == APPROXDIR.EXACT else
@@ -114,14 +99,26 @@ class Union(OR):
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 ## Propositional
 
-def Minus(lhs: TLTLike, rhs: TLTLike) -> TLT:
-    return And(lhs, Not(rhs))
+MINUS = declare('MINUS')
+Minus = define(
+    MINUS('lhs', 'rhs'),
+    AND('lhs', NOT('rhs')),
+    Not, And,
+)
 
-def Implies(lhs: TLTLike, rhs: TLTLike) -> TLT:
-    return Or(lhs, Not(rhs))
+IMPLIES = declare('IMPLIES')
+Implies = define(
+    IMPLIES('lhs', 'rhs'),
+    OR('lhs', NOT('rhs')),
+    Not, Or,
+)
+
+class PropositionalNoOr(
+    Minus,
+    Not, And, 
+): ...
 
 class Propositional(
-    Complement,
-    Intersection,
-    Union,
+    Minus, Implies, 
+    Not, And, Or,
 ): ...

@@ -2,8 +2,9 @@ import contextlib
 import functools
 
 from flax import struct
+from jax_tqdm import scan_tqdm
+from jax.experimental import io_callback
 import jax
-import jax.experimental.host_callback
 import jax.numpy as jnp
 import numpy as np
 
@@ -65,17 +66,13 @@ class SolverSettings:
 
 @functools.partial(jax.jit, static_argnames=("dynamics", "progress_bar"))
 def step(solver_settings, dynamics, grid, time, values, target_time, progress_bar=True):
-    with (_try_get_progress_bar(time, target_time)
-          if progress_bar is True else contextlib.nullcontext(progress_bar)) as bar:
 
-        def sub_step(time_values):
-            t, v = solver_settings.time_integrator(solver_settings, dynamics, grid, *time_values, target_time)
-            if bar is not False:
-                bar.update_to(jnp.abs(t - bar.reference_time))
-            return t, v
+    def sub_step(time_values):
+        t, v = solver_settings.time_integrator(solver_settings, dynamics, grid, *time_values, target_time)
+        return t, v
 
-        return jax.lax.while_loop(lambda time_values: jnp.abs(target_time - time_values[0]) > 0, sub_step,
-                                  (time, values))[1]
+    return jax.lax.while_loop(lambda time_values: jnp.abs(target_time - time_values[0]) > 0, sub_step,
+                                (time, values))[1]
 
 # @functools.partial(jax.jit, static_argnames=("dynamics", "progress_bar"))
 # def solve(solver_settings, dynamics, grid, times, target, constraints=None, preempt_saturatation=False, progress_bar=True):
@@ -180,35 +177,39 @@ def solve(solver_settings, dynamics, grid, times, target, constraint=None, progr
     is_target_invariant = shp.is_invariant(grid, times, target)
     is_constraint_invariant = shp.is_invariant(grid, times, constraint)
     
-    ctx = (_try_get_progress_bar(times[0], times[-1]) if progress_bar is True else
-           contextlib.nullcontext(progress_bar))
-    with ctx as bar:
+    # ctx = (_try_get_progress_bar(times[0], times[-1]) if progress_bar is True else
+    #        contextlib.nullcontext(progress_bar))
+    # with ctx as bar:
     
-        target = jnp.asarray(target)
-        vf = target if is_target_invariant else target[0]
-        
-        if constraint is not None:
-            constraint = jnp.asarray(constraint)
-            vf = jnp.maximum(vf, constraint if is_constraint_invariant else constraint[0])
-        
-        if constraint is None:
-            def f(carry, j):
-                i, vf = carry
-                vf = step(solver_settings, dynamics, grid, times[i], vf, times[j], bar)
-                vf = jnp.minimum(vf, target if is_target_invariant else target[j])
-                return (j, vf), vf
-        else:
-            def f(carry, j):
-                i, vf = carry
-                vf = step(solver_settings, dynamics, grid, times[i], vf, times[j], bar)
-                vf = jnp.minimum(vf, target if is_target_invariant else target[j])
-                vf = jnp.maximum(vf, constraint if is_constraint_invariant else constraint[j])
-                return (j, vf), vf
+    target = jnp.asarray(target)
+    vf = target if is_target_invariant else target[0]
+    
+    if constraint is not None:
+        constraint = jnp.asarray(constraint)
+        vf = jnp.maximum(vf, constraint if is_constraint_invariant else constraint[0])
+    
+    if constraint is None:
+        def f(carry, j):
+            i, vf = carry
+            vf = step(solver_settings, dynamics, grid, times[i], vf, times[j+1])
+            vf = jnp.minimum(vf, target if is_target_invariant else target[j+1])
+            return (j, vf), vf
+    else:
+        def f(carry, j):
+            i, vf = carry
+            vf = step(solver_settings, dynamics, grid, times[i], vf, times[j+1])
+            vf = jnp.minimum(vf, target if is_target_invariant else target[j+1])
+            vf = jnp.maximum(vf, constraint if is_constraint_invariant else constraint[j+1])
+            return (j, vf), vf
 
-        return jnp.concatenate([
-            vf[jnp.newaxis],
-            jax.lax.scan(f, (0, vf), jnp.arange(1, len(times)))[1]
-        ])
+    if progress_bar:
+        decorator = scan_tqdm(len(times)-1)
+        f = decorator(f)
+
+    return jnp.concatenate([
+        vf[jnp.newaxis],
+        jax.lax.scan(f, (0, vf), jnp.arange(len(times)-1))[1]
+    ])
     
 ### NumPy thing ###
 
@@ -264,6 +265,16 @@ def solve(solver_settings, dynamics, grid, times, target, constraint=None, progr
 #         ])
 
 
+def add_progress_bar(f, steps, style='auto'):
+    decorator = scan_tqdm(
+        t0,
+        total=jnp.abs(t1 - t0),
+        unit="sim_s",
+        bar_format="{l_bar}{bar}| {n:7.4f}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}{postfix}]",
+        ascii=True
+    )
+    return decorator(f)
+
 def _try_get_progress_bar(reference_time, target_time):
     try:
         import tqdm
@@ -279,18 +290,24 @@ def _try_get_progress_bar(reference_time, target_time):
 
 class TqdmWrapper:
 
+    _tqdm = None
+
     def __init__(self, tqdm, reference_time, total, *args, **kwargs):
         self.reference_time = reference_time
-        jax.experimental.host_callback.id_tap(lambda total, __: self._create_tqdm(tqdm, total, *args, **kwargs), total)
+        callback = lambda total: self._create_tqdm(tqdm, total, *args, **kwargs)
+        io_callback(callback, None, total)
 
     def _create_tqdm(self, tqdm, total, *args, **kwargs):
         self._tqdm = tqdm.tqdm(total=total, *args, **kwargs)
 
     def update_to(self, n):
-        return jax.experimental.host_callback.id_tap(lambda n, __: self._tqdm.update(n - self._tqdm.n), n)
+        callback = lambda n: self._tqdm.update(n - self._tqdm.n) if self._tqdm is not None else None
+        io_callback(callback, None, n)
+        return n
 
     def close(self):
-        return jax.experimental.host_callback.id_tap(lambda _, __: self._tqdm.close(), None)
+        callback = lambda: self._tqdm.close() if self._tqdm is not None else None
+        io_callback(callback, None)
 
     def __enter__(self):
         return self
