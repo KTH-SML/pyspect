@@ -181,11 +181,11 @@ def solve(solver_settings, dynamics, grid, times, target, constraint=None, progr
     #        contextlib.nullcontext(progress_bar))
     # with ctx as bar:
     
-    target = jnp.asarray(target)
+    target = jnp.array(target)
     vf = target if is_target_invariant else target[0]
     
     if constraint is not None:
-        constraint = jnp.asarray(constraint)
+        constraint = jnp.array(constraint)
         vf = jnp.maximum(vf, constraint if is_constraint_invariant else constraint[0])
     
     if constraint is None:
