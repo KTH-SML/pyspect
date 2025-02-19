@@ -79,9 +79,13 @@ class AppliedSet[R, I](SetBuilder[R, I]):
         self.add_requirements(_require)        
 
     def __call__(self, impl: I, **m: SetBuilder[R, I]) -> Never | R:
-        args = [sb(impl, **m) for sb in self.builders]
-        func = getattr(impl, self.funcname)
-        return func(*args)
+        try:
+            args = [sb(impl, **m) for sb in self.builders]
+            func = getattr(impl, self.funcname)
+            return func(*args)
+        except Exception as e:
+            E = type(e)
+            raise E(f'When applying "{self.funcname}", received: {e!s}')
 
 
 ## ## ## ## ## ## ## ## ## ##
@@ -109,7 +113,7 @@ class HalfSpaceSet[R, I: HasPlaneCut, **P](SetBuilder[R, I]):
 
 class BoundedSet[R, I](SetBuilder[R, I]):
 
-    __require__ = ('complement','plane_cut', 'intersect')
+    __require__ = ('complement', 'plane_cut', 'intersect')
 
     def __init__(self, **bounds: list[int]) -> None:
         self.bounds = bounds

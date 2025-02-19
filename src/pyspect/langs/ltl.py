@@ -34,7 +34,7 @@ class Until[R, I](UNTIL):
 
     @staticmethod
     def __new_UNTIL__(lhs: TLTLike[R, I], rhs: TLTLike[R, I]) -> TLT[R, I]:
-        return TLT.construct(UNTIL('_1', '_2'), _1=lhs, _2=rhs)
+        return TLT(UNTIL('_1', '_2'), _1=lhs, _2=rhs)
 
     @staticmethod
     def __apply_UNTIL__(sb1: SetBuilder[R, I], sb2: SetBuilder[R, I]) -> SetBuilder[R, I]:
@@ -63,6 +63,7 @@ class Always[R, I](Not[R, I], ALWAYS):
     def __check_ALWAYS__(a: APPROXDIR) -> APPROXDIR:
         a0 = APPROXDIR.UNDER
         return (APPROXDIR.INVALID if a != a0 else a)
+
 
 
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
