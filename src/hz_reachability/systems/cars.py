@@ -101,6 +101,64 @@ class CarLinearModel4D:
 
         return HybridZonotope(Gc, Gb, c, Ac, Ab, b) 
 
+class CircularBicycle5DLinearized:
+    '''
+    This class defines a discrete-time linear dynamics model without disturbances.
+
+    x_{k+1} = Ax_k + Bu_k
+
+    '''
+
+    dt = step_size
+
+    def __init__(self, z0=..., u0=..., step_size=...) -> None:
+        if z0 is Ellipsis: z0 = [0] * 5
+        if u0 is Ellipsis: u0 = [0] * 2
+        if step_size is not Ellipsis: self.dt = step_size
+
+        ## Continuous time linearization
+
+        r, phi, v_r, v_phi, w = z0
+        a, d = u0
+
+        Ac = [[0.0, 0.0, 1.0,          0.0,   0.0],
+              [0.0, 0.0, 0.0,          1.0,   0.0],
+              [0.0, 0.0, 0.0,            w, v_phi],
+              [0.0, 0.0,  -w,          0.0,  -v_r],
+              [0.0, 0.0, 0.0,     tan(d)/L,   0.0]]
+
+        Bc = [[0.0,                    0.0],
+              [0.0,                    0.0],
+              [0.0,                    0.0],
+              [1.0,                    0.0],
+              [0.0, v_phi/(L*np.cos(d)**2)]]
+
+        ## Discrete time linearization
+
+        self.A = np.identity(5) + Ac*self.dt
+        self.B = Bc*self.dt
+
+        self.AB = np.hstack((self.A, self.B))
+        self.input_spacce = self.get_input_space
+
+    def get_input_space(self):
+        """
+        Description
+        ------------
+        """
+        # Maximum rate of change in velocity (acceleration)
+        ng = 2; nc = 0; nb = 0
+
+        Gc = np.array([
+            [1.0, 0.0],
+            [0.0, 1.0]
+        ])
+
+        c = np.array([ [0.0], [0.0] ]); Gb = np.zeros((ng, nb))
+        Ac = np.zeros((nc, ng)); Ab = np.zeros((nc, nb)); b = np.zeros((nc, 1))
+
+        return HybridZonotope(Gc, Gb, c, Ac, Ab, b) 
+
 
 
 

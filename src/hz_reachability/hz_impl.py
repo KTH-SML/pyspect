@@ -15,7 +15,7 @@ References
 [3] - Guaranteed Completion of Complex Tasks via Temporal Logic Trees and Hamilton-Jacobi Reachability, Frank J. Jiang, Kaj M. Arfvidsson, et al.
 """
 
-class HZImpl(ContinuousLTL.Impl):
+class HZImpl:
     """
     Description
     ------------
