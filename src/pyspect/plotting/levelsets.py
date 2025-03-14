@@ -75,7 +75,7 @@ def new_fig(**kwargs):
 
 def auto_fig(f):
     @wraps(f)
-    def wrapper(*args, fig: BaseFigure = None, **kwargs):
+    def wrapper(*args, fig: BaseFigure = None, fig_enabled=True, **kwargs):
         fig_kw = {k[4:]: kwargs.pop(k) for k in tuple(kwargs) if k.startswith('fig_')}
         
         # Automatically detect 2D or 3D theme
@@ -88,7 +88,9 @@ def auto_fig(f):
         if fig is None:
             fig = new_fig(**fig_kw)
         
-        return f(*args, fig=fig, **kwargs)
+        if fig_enabled:
+            return f(*args, fig=fig, **kwargs)
+        
     return wrapper
 
 @auto_fig
@@ -180,7 +182,49 @@ def plot2D_levelset(vf, *, fig: BaseFigure, axes=(0,1), level=0, **kwargs) -> Ba
         yaxis=dict(range=[min_bounds[1], max_bounds[1]], title=ytitle),
     )
 
-    return plot2D_bitmap(vf <= level, fig=fig, **kwargs)
+    im = vf.transpose(*axes) <= level
+    return plot2D_bitmap(im, fig=fig, **kwargs)
+
+@auto_fig
+def plot3D_valuefun(vf, *, fig: BaseFigure, axes=(0, 1), **kwargs) -> BaseFigure:
+    assert len(vf.shape) == 2
+    assert len(axes) == 2
+    I, J = axes
+
+    min_bounds = kwargs.pop('min_bounds')
+    max_bounds = kwargs.pop('max_bounds')
+    assert len(min_bounds) == 2
+    assert len(max_bounds) == 2
+
+    X, Y = np.meshgrid(np.linspace(min_bounds[I], max_bounds[I], vf.shape[I]),
+                       np.linspace(min_bounds[J], max_bounds[J], vf.shape[J]),
+                       indexing='ij')
+
+    setdefaults(kwargs,
+                eye=EYE_ML_NE,
+                showscale=False,
+                x=X, y=Y,
+                xtitle='x [m]', ytitle='y [m]', ztitle='Value')
+
+    eye     = kwargs.pop('eye')
+    xtitle  = kwargs.pop('xtitle')
+    ytitle  = kwargs.pop('ytitle')
+    ztitle  = kwargs.pop('ztitle')
+
+    fig.update_layout(
+        scene=dict(
+            xaxis_title=xtitle,
+            yaxis_title=ytitle,
+            zaxis_title=ztitle,
+            aspectmode='cube'
+        ),
+        scene_camera=dict(eye=eye)
+    )
+
+    return fig.add_trace(go.Surface(
+        z=vf.transpose(*axes),
+        **kwargs,
+    ))
 
 @auto_fig
 def plot3D_levelset(vf, *, fig: BaseFigure, axes=(1,2,0), level=0, **kwargs) -> BaseFigure:

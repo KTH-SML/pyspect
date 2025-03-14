@@ -138,5 +138,70 @@ class ParkingSpace:
 
         return road
 
+class EmptySpace:
+    
+    def __init__(self):
+        PHI_LOOKAHEAD = 2 # [rad]
+        self.max_bounds = np.array([1.8,       +PHI_LOOKAHEAD])
+        self.min_bounds = np.array([0.8, 0.5 * -PHI_LOOKAHEAD])
+        self.zono_op = ZonoOperations()
+        self.remove_redundant = False
 
+    @property
+    def state_space(self):
+        Gc = np.diag(self.max_bounds - self.min_bounds) / 2
+        Gb = np.zeros((2, 2))
+        c = np.array(self.max_bounds + self.min_bounds).reshape(-1, 1) / 2
+        Ac = np.zeros((0, 2))
+        Ab = np.zeros((0, 2))
+        b = np.zeros((0, 1))
 
+        return HybridZonotope(Gc, Gb, c, Ac, Ab, b)
+
+    @property
+    def input_space(self):
+        # Maximum rate of change in velocity (acceleration)
+        ng = 2; nc = 0; nb = 0
+
+        Gc = np.array([
+            [1.0, 0.0],
+            [0.0, 1.0]
+        ])
+
+        c = np.array([ [0.0], [0.0] ]); Gb = np.zeros((ng, nb))
+        Ac = np.zeros((nc, ng)); Ab = np.zeros((nc, nb)); b = np.zeros((nc, 1))
+
+        return HybridZonotope(Gc, Gb, c, Ac, Ab, b) 
+
+    @property
+    def augmented_state_space(self):
+
+        state_space = self.state_space
+        input_space = self.input_space
+
+        nz = state_space.Gc.shape[0]
+        nu = input_space.Gc.shape[0]
+
+        nz_c = state_space.Ac.shape[0]
+        nz_b = state_space.Gb.shape[1]
+        nz_g = state_space.Gc.shape[1]
+
+        nu_c = input_space.Ac.shape[0]
+        nu_b = input_space.Gb.shape[1]
+        nu_g = input_space.Gc.shape[1]
+
+        Gc  = np.block([[      state_space.Gc, np.zeros((nz, nu_g))],
+                        [np.zeros((nu, nz_g)),       input_space.Gc]])
+        Gb  = np.block([[      state_space.Gb, np.zeros((nz, nu_b))], 
+                        [np.zeros((nu, nz_b)),       input_space.Gb]])
+        c   = np.block([[state_space.C],
+                        [input_space.C]])
+
+        Ac  = np.block([[        state_space.Ac, np.zeros((nz_c, nu_g))], 
+                        [np.zeros((nu_c, nz_g)),         input_space.Ac]])
+        Ab  = np.block([[        state_space.Ab, np.zeros((nz_c, nu_b))], 
+                        [np.zeros((nu_c, nz_b)),         input_space.Ab]])
+        b   = np.block([[state_space.b], 
+                        [input_space.b]])
+
+        return HybridZonotope(Gc, Gb, c, Ac, Ab, b)

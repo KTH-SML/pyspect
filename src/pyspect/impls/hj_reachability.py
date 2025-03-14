@@ -1,15 +1,19 @@
 import numpy as np
 import hj_reachability as hj
 
-class HJImpl:
+# Time-Varying Hamilton-Jacobi Reachability
+# -----------------------------------------
+
+class TVHJImpl:
 
     solver_settings = hj.SolverSettings.with_accuracy("low")
 
     def __init__(self, dynamics, grid, time_horizon):
         self.grid = grid
         Dynamics = dynamics.pop('cls')
-        self.reach_dynamics = Dynamics(**dynamics).with_mode('reach')
-        self.avoid_dynamics = Dynamics(**dynamics).with_mode('avoid')
+        if Dynamics is not None:
+            self.reach_dynamics = Dynamics(**dynamics).with_mode('reach')
+            self.avoid_dynamics = Dynamics(**dynamics).with_mode('avoid')
         self.timeline = self.new_timeline(time_horizon) 
            
     def new_timeline(self, target_time, start_time=0, time_step=0.2):
@@ -140,7 +144,7 @@ class HJImpl:
         return (vf if not self.is_invariant(vf) else
                 np.concatenate([vf[np.newaxis, ...]] * len(self.timeline)))
 
-class HJImplDebugShape(HJImpl):
+class TVHJImplDebugShape(TVHJImpl):
     
     @staticmethod
     def _shape(vf):

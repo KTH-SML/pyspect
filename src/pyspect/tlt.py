@@ -61,14 +61,14 @@ class APPROXDIR(Enum):
                          lhs * rhs)
 
 
-type SetMap[R, I] = idict[str, Optional[SetBuilder[R, I]]]
+type SetMap = idict[str, Optional[SetBuilder]]
 
-type TLTLike[R, I] = Union[TLTFormula, SetBuilder[R, I], 'TLT[R, I]']
+type TLTLike = Union[TLTFormula, SetBuilder, 'TLT']
 
-type TLTLikeMap[R, I] = Dict[str, TLTLike[R, I]]
+type TLTLikeMap = Dict[str, TLTLike]
 
 
-class TLT[R, I](ImplClient):
+class TLT(ImplClient):
 
     __debug = {}
 
@@ -91,10 +91,10 @@ class TLT[R, I](ImplClient):
         cls.__language__ = lang
 
     @classmethod
-    def construct(cls, arg: TLTLike[R, I], **kwds: TLTLike[R, I]) -> 'TLT[R, I]':
+    def construct(cls, arg: TLTLike, **kwds: TLTLike) -> 'TLT':
         return cls(arg, **kwds)
 
-    def __new__(cls, arg: TLTLike[R, I], **kwds: TLTLike[R, I]) -> 'TLT[R, I]':
+    def __new__(cls, arg: TLTLike, **kwds: TLTLike) -> 'TLT':
         if cls.__debug: kwds.update(cls.__debug)
         return (cls.__new_from_tlt__(arg, **kwds)      if isinstance(arg, TLT) else
                 cls.__new_from_prop__(arg, **kwds)     if isinstance(arg, str) else
@@ -102,7 +102,7 @@ class TLT[R, I](ImplClient):
                 cls.__new_from_formula__(arg, **kwds))
 
     @classmethod
-    def __new_from_tlt__(cls, tlt: 'TLT[R, I]', **kwds: TLTLikeMap[R, I]) -> 'TLT[R, I]':
+    def __new_from_tlt__(cls, tlt: 'TLT', **kwds: TLTLikeMap) -> 'TLT':
         # Hacky debug helpers
         __debug: dict = {k: kwds.pop(k) for k in list(kwds) if k.startswith('__debug')}
         __debug_print: bool = __debug.get('__debug_print', False)
@@ -123,7 +123,7 @@ class TLT[R, I](ImplClient):
         return cls.__new_from_formula__(tlt._formula, **kwds, **__debug)
 
     @classmethod
-    def __new_from_prop__(cls, prop: str, **kwds: TLTLikeMap[R, I]) -> 'TLT[R, I]':
+    def __new_from_prop__(cls, prop: str, **kwds: TLTLikeMap) -> 'TLT':
         # Hacky debug helpers
         __debug: dict = {k: kwds.pop(k) for k in list(kwds) if k.startswith('__debug')}
         __debug_print: bool = __debug.get('__debug_print', False)
@@ -137,7 +137,7 @@ class TLT[R, I](ImplClient):
                 cls.__new_init__(formula, ReferredSet(prop), setmap={prop: None}))
 
     @classmethod
-    def __new_from_builder__(cls, sb: SetBuilder, **kwds: TLTLikeMap[R, I]) -> 'TLT[R, I]':
+    def __new_from_builder__(cls, sb: SetBuilder, **kwds: TLTLikeMap) -> 'TLT':
         # Hacky debug helpers
         __debug: dict = {k: kwds.pop(k) for k in list(kwds) if k.startswith('__debug')}
         __debug_print: bool = __debug.get('__debug_print', False)
@@ -162,7 +162,7 @@ class TLT[R, I](ImplClient):
         return self
 
     @classmethod
-    def __new_from_formula__(cls, formula: TLTFormula, **kwds: TLTLikeMap[R, I]) -> 'TLT[R, I]':
+    def __new_from_formula__(cls, formula: TLTFormula, **kwds: TLTLikeMap) -> 'TLT':
         # Hacky debug helpers
         __debug: dict = {k: kwds.pop(k) for k in list(kwds) if k.startswith('__debug')}
         __debug_print: bool = __debug.get('__debug_print', False)
@@ -222,7 +222,7 @@ class TLT[R, I](ImplClient):
         return self
 
     _formula: TLTFormula
-    _builder: SetBuilder[R, I]
+    _builder: SetBuilder
     _approx: APPROXDIR
     _setmap: SetMap
 
@@ -233,17 +233,17 @@ class TLT[R, I](ImplClient):
         formula = str(self._formula)
         return f'{cls}<{lang}>({approx}, {formula})'
 
-    def where(self, **kwds: TLTLike[R, I]) -> 'TLT[R, I]':
+    def where(self, **kwds: TLTLike) -> 'TLT':
         return TLT(self, **kwds)
 
-    def realize(self, impl: I, memoize=False) -> R:
+    def realize(self, impl: 'I', memoize=False) -> 'R':
         self.assert_realizable()
         out = self._builder(impl, **self._setmap)
         if memoize:
             raise NotImplementedError() # TODO: builder = Set(out)
         return out
 
-    def assert_realizable(self, impl: Optional[I] = None) -> None:
+    def assert_realizable(self, impl: Optional['I'] = None) -> None:
         for name, sb in self._setmap.items():
             if sb is None: 
                 raise Exception(f'Missing proposition `{name}`')
@@ -252,7 +252,7 @@ class TLT[R, I](ImplClient):
             if missing:
                 raise Exception(f'Missing from implementation: {", ".join(missing)}')
 
-    def is_realizable(self, impl: Optional[I] = None) -> bool:
+    def is_realizable(self, impl: Optional['I'] = None) -> bool:
         try:
             self.assert_realizable(impl)
         except Exception:
@@ -274,5 +274,5 @@ class TLT[R, I](ImplClient):
         yield from filter(lambda p: self._setmap[p] is None, self._setmap)
 
 
-def Identity[R, I](arg: TLTLike[R, I]) -> TLT[R, I]:
+def Identity(arg: TLTLike) -> TLT:
     return TLT(arg)

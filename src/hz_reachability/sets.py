@@ -16,7 +16,7 @@ class HybridZonotope:
         Hybrid Zonotope HZ = (Gc, Gb, C, Ac, Ab, b)
 
         - Gc: Generators of the continuous component
-            - [g_1, g_2, ..., g_nc] where g_1, g_2, ..., g_nc are column vectors of dimension n
+            - [g_1, g_2, ..., g_ng] where g_1, g_2, ..., g_ng are column vectors of dimension n
         - Gb: Generators of the binary component
             - [g_1, g_2, ..., g_nb] where g_1, g_2, ..., g_nb are column vectors of dimension n
         - C : Center of the constrained zonotope
@@ -38,6 +38,9 @@ class HybridZonotope:
         self.Ac = Ac
         self.Ab = Ab
         self.b = b
+
+    def astuple(self) -> tuple:
+        return (self.Gc, self.Gb, self.C, self.Ac, self.Ab, self.b)
 
     @property
     def dim(self) -> int:

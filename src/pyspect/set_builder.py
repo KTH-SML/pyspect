@@ -27,46 +27,46 @@ __all__ = (
 
 class SetBuilderMeta(ImplClientMeta, ABCMeta, type): ...
 
-class SetBuilder[R, I](ImplClient, metaclass=SetBuilderMeta):
+class SetBuilder(ImplClient, metaclass=SetBuilderMeta):
 
     free: tuple[str, ...] = ()
 
     @abstractmethod
-    def __call__(self, impl: I, **m: Self) -> Never | R: ...
+    def __call__(self, impl: 'I', **m: Self) -> Never | 'R': ...
 
     def __repr__(self) -> str:
         cls = type(self)
         ptr = hash(self)
         return f'<{cls.__name__} at {ptr:#0{18}x}>'
 
-class AbsurdSet[R, I](SetBuilder[R, I]):
+class AbsurdSet(SetBuilder):
     
-    def __call__(self, impl: I, **m: SetBuilder[R, I]) -> Never:
+    def __call__(self, impl: 'I', **m: SetBuilder) -> Never:
         raise ValueError("Cannot realize the absurd set.")
 
 ABSURD: AbsurdSet = AbsurdSet()
 
-class Set[R, I](SetBuilder[R, I]):
+class Set(SetBuilder):
 
-    def __init__(self, arg: R) -> None:
+    def __init__(self, arg: 'R') -> None:
         self.arg = arg
 
-    def __call__(self, impl: I, **m: SetBuilder[R, I]) -> R:
+    def __call__(self, impl: 'I', **m: SetBuilder) -> 'R':
         return self.arg
 
-class ReferredSet[R, I](SetBuilder[R, I]):
+class ReferredSet(SetBuilder):
 
     def __init__(self, name: str) -> None:
         self.free += (name,)
 
-    def __call__(self, impl: I, **m: SetBuilder[R, I]) -> Never | R:
+    def __call__(self, impl: 'I', **m: SetBuilder) -> Never | 'R':
         name, = self.free
         sb = m.pop(name)
         return sb(impl, **m)
 
-class AppliedSet[R, I](SetBuilder[R, I]):
+class AppliedSet(SetBuilder):
 
-    def __init__(self, funcname: str, *builders: SetBuilder[R, I]) -> None:
+    def __init__(self, funcname: str, *builders: SetBuilder) -> None:
         self.funcname = funcname
         self.builders = builders
         
@@ -78,7 +78,7 @@ class AppliedSet[R, I](SetBuilder[R, I]):
 
         self.add_requirements(_require)        
 
-    def __call__(self, impl: I, **m: SetBuilder[R, I]) -> Never | R:
+    def __call__(self, impl: 'I', **m: SetBuilder) -> Never | 'R':
         try:
             args = [sb(impl, **m) for sb in self.builders]
             func = getattr(impl, self.funcname)
@@ -91,16 +91,16 @@ class AppliedSet[R, I](SetBuilder[R, I]):
 ## ## ## ## ## ## ## ## ## ##
 ## User-friendly Primitives
 
-class EmptySet[R, I: HasEmpty](SetBuilder[R, I]):
+class EmptySet[R, I: HasEmpty](SetBuilder):
 
     __require__ = ('empty',)
     
-    def __call__(self, impl: I, **m: SetBuilder[R, I]) -> R:
+    def __call__(self, impl: 'I', **m: SetBuilder) -> 'R':
         return impl.empty()
     
 EMPTY: EmptySet = EmptySet()
 
-class HalfSpaceSet[R, I: HasPlaneCut, **P](SetBuilder[R, I]):
+class HalfSpaceSet[R, I: HasPlaneCut, **P](SetBuilder):
 
     __require__ = ('plane_cut',)
 
@@ -108,17 +108,17 @@ class HalfSpaceSet[R, I: HasPlaneCut, **P](SetBuilder[R, I]):
         self.args = args
         self.kwds = kwds
     
-    def __call__(self, impl: I, **m: SetBuilder[R, I]) -> R:
+    def __call__(self, impl: 'I', **m: SetBuilder) -> 'R':
         return impl.plane_cut(*self.args, **self.kwds)
 
-class BoundedSet[R, I](SetBuilder[R, I]):
+class BoundedSet(SetBuilder):
 
     __require__ = ('complement', 'plane_cut', 'intersect')
 
     def __init__(self, **bounds: list[int]) -> None:
         self.bounds = bounds
 
-    def __call__(self, impl: I, **m: SetBuilder[R, I]) -> R:
+    def __call__(self, impl: 'I', **m: SetBuilder) -> 'R':
         s = impl.complement(impl.empty())
         _bounds = [(vmin, vmax, impl.axis(name))
                    for name, (vmin, vmax) in self.bounds.items()]

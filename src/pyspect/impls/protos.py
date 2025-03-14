@@ -14,37 +14,37 @@ class HasAxisStuff(Protocol):
     def axis(self, name: str) -> int: ...
 
 
-class HasEmpty[R](Protocol):
+class HasEmpty(Protocol):
 
     @abstractmethod    
-    def empty(self) -> R: ...
+    def empty(self): ...
 
-class HasPlaneCut[R, **P](Protocol):
-
-    @abstractmethod    
-    def plane_cut(self, *args: P.args, **kwds: P.kwargs) -> R: ...
-
-class HasComplement[R](Protocol):
+class HasPlaneCut(Protocol):
 
     @abstractmethod    
-    def complement(self, _1: R) -> R: ...
+    def plane_cut(self, *args, **kwds): ...
 
-class HasIntersect[R](Protocol):
-
-    @abstractmethod    
-    def intersect(self, _1: R, _2: R) -> R: ...
-
-class HasUnion[R](Protocol):
+class HasComplement(Protocol):
 
     @abstractmethod    
-    def union(self, _1: R, _2: R) -> R: ...
+    def complement(self, _1: 'R') -> 'R': ...
 
-class HasReach[R](Protocol):
+class HasIntersect(Protocol):
+
+    @abstractmethod    
+    def intersect(self, _1: 'R', _2: 'R') -> 'R': ...
+
+class HasUnion(Protocol):
+
+    @abstractmethod    
+    def union(self, _1: 'R', _2: 'R') -> 'R': ...
+
+class HasReach(Protocol):
 
     @abstractmethod
-    def reach(self, target: R, constraint: Optional[R]) -> R: ...
+    def reach(self, target: 'R', constraint: Optional['R']) -> 'R': ...
     
-class HasAvoid[R](Protocol):
+class HasAvoid(Protocol):
 
     @abstractmethod
-    def avoid(self, target: R, constraint: Optional[R]) -> R: ...
+    def avoid(self, target: 'R', constraint: Optional['R']) -> 'R': ...

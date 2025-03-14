@@ -1,21 +1,20 @@
 from collections.abc import Mapping
-from typing import Dict, Generic, TypeVar
 
 __all__ = (
     'idict',
 )
 
-class idict[KT, VT](Mapping):
+class idict(Mapping):
     """Immutable Dictionary."""
 
-    _data: Dict[KT, VT]
+    _data: dict
     _hash: int
 
     def __init__(self, *args, **kwargs):
         self._data = dict(*args, **kwargs)
         self._hash = None
 
-    def __getitem__(self, key: KT) -> VT:
+    def __getitem__(self, key):
         return self._data[key]
 
     def __iter__(self):

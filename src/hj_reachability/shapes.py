@@ -3,6 +3,9 @@ from dataclasses import dataclass
 import numpy as np
 from .grid import Grid
 
+# If @ actually made sense for higher-order tensors
+tmul = lambda x1, x2: np.tensordot(x1, x2, ([-1], [0]))
+
 def complement(shape):
     """ Calculates the complement of a shape
 
@@ -28,7 +31,6 @@ def union(shape, *shapes):
     for shape in shapes: 
         result = np.minimum(result, shape)
     return result
-
 
 def intersection(shape, *shapes):
     """ Calculates the intersection of two shapes
@@ -56,7 +58,7 @@ def project_onto(vf, *idxs, keepdims=False):
     dims = [i for i in range(len(vf.shape)) if i not in idxs]
     return vf.min(axis=tuple(dims), keepdims=keepdims)
 
-def hyperplane(grid: Grid, normal, offset, axes=None):
+def hyperplane(grid: Grid, normal, offset, const=0, axes=None):
     """Creates an hyperplane implicit surface function
 
     Args:
@@ -67,7 +69,7 @@ def hyperplane(grid: Grid, normal, offset, axes=None):
     Returns:
         np.ndarray: implicit surface function of the hyperplane
     """
-    data = np.zeros(grid.shape)
+    data = -const * np.ones(grid.shape)
     axes = axes or list(range(grid.ndim))
     x = lambda i: grid.states[..., i]
     for i, k, m in zip(axes, normal, offset):
@@ -158,26 +160,95 @@ def point(grid: Grid, z):
     target_min, target_max = zip(*bounds)
     return rectangle(grid, target_min=target_min, target_max=target_max)
 
-def cylinder(grid: Grid, center, axes, radius):
-    """Creates an axis align cylinder implicit surface function
-
-    Args:
-        grid (Grid): Grid object
-        ignore_dims (List): List specifing axis where cylinder is aligned (0-indexed)
-        center (List): List specifying the center of cylinder
-        radius (float): Radius of cylinder
-
-    Returns:
-        np.ndarray: implicit surface function of the cylinder
+def lp_bound(grid, c=..., r=1, w=..., p=2, axes=...):
     """
-    data = np.zeros(grid.shape)
-    for i in range(grid.ndim):
-        if i not in axes:
-            # This works because of broadcasting
-            data = data + np.power(grid.states[..., i] - center[i], 2)
-    data = np.sqrt(data) - radius
+    = Creates a weighted Lp-bound shape.
+
+    We define the Lp-bound shape as the set of points $x$ such that
+    $ ( Sigma_(i in bb(N)_n) w_i | x_i - c_i |^p )^(1/p) <= r. $
+
+    == Args
+
+    / grid: Grid object defining $bb(R)^n$.
+    / c: Center point of the Lp-bound. Default is 0.
+    / r: The upper bound of the norm. Default is 1.
+    / w: Weights for each dimension in the Lp norm. Default is 1.
+    / p: Lp norm order. Default is 2.
+    / axes: Defines indices $i$ by either:
+            (1) if `= int(j)`, the single grid dimension $j$ s.t. $i in {j}$; or
+            (2) if `= list(l)`, the list of grid dimensions s.t. $i in #`l`$; or
+            (3) if `= array(A)`, redefine basis vectors using projection matrix
+                $A in bb(R)^(n times m)$ s.t. $i in bb(N)_m$; or
+            (4) if `= Ellipsis` (default), all grid dimensions are used.
+    """
+
+    match axes:
+        case int(i):
+            x = np.array([grid.states[..., i]])
+        case list(l):
+            x = np.array([grid.states[..., i] for i in l])
+        case np.ndarray() as A:
+            x = np.array([grid.states[..., i] for i in range(grid.ndim)])
+            x = tmul(A, x)
+        case Ellipsis:
+            x = np.array([grid.states[..., i] for i in range(grid.ndim)])
+
+    c = np.array([0] * len(axes) if c is ... else 
+                 [c] if isinstance(c, (int, float)) else 
+                 c)
+
+    w = np.array([1] * len(axes) if w is ... else
+                 [w] if isinstance(w, (int, float)) else 
+                 w)
+
+    assert len(c) == len(x), "Center point must have same dimension as x"
+    assert len(w) == len(x), "Weights must have same dimension as x"
+    
+    # Needed for broadcasting
+    c = c.reshape(-1, *[1]*grid.ndim)
+
+    data = np.abs(x - c)**p
+    data = tmul(w, data)
+    data = np.power(data, 1/p) - r
     return data
 
+def cylinder(grid, r, c, axis):
+    """
+    = Creates a cylinder implicit surface function
+
+    == Args
+    / grid: Grid object.
+    / r: Radius of the cylinder.
+    / c: Center of the cylinder (in grid space).
+    / axis: Axis of the cylinder (in grid space).
+
+    == Returns
+    _(np.ndarray)_
+    Implicit surface function of the cylinder.
+    """
+    match axis:
+        case int(i):
+            v = [0]*grid.ndim
+            v[i] = 1
+        case v: 
+            v = np.array(v)
+            v /= np.linalg.norm(v)
+            assert len(c) == grid.ndim, "Center point must have same dimension as grid"
+            assert len(v) == grid.ndim, "Axis must have same dimension as grid"
+
+    # transformation matrix to space orthogonal to v
+    # we're still in the same space, but have removed one axis.
+    V = np.identity(grid.ndim) - np.outer(v, v)
+
+    # move point c into the orthogonal space
+    c = np.array([0] * len(axes) if c is ... else 
+                 [c] if isinstance(c, (int, float)) else 
+                 c)
+    assert len(c) == len(v), "Center point must have same dimension as v"
+    c = tmul(V, c)
+
+    return lp_bound(grid, c=c, r=r, axes=V)
+    
 def make_tube(times, vf):
     return np.concatenate([vf[np.newaxis, ...]] * len(times))
 

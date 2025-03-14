@@ -28,16 +28,16 @@ __all__ = (
 
 UNTIL = declare('UNTIL')
 
-class Until[R, I](UNTIL):
+class Until(UNTIL):
 
     __default__ = 'UNTIL'
 
     @staticmethod
-    def __new_UNTIL__(lhs: TLTLike[R, I], rhs: TLTLike[R, I]) -> TLT[R, I]:
+    def __new_UNTIL__(lhs: TLTLike, rhs: TLTLike) -> TLT:
         return TLT(UNTIL('_1', '_2'), _1=lhs, _2=rhs)
 
     @staticmethod
-    def __apply_UNTIL__(sb1: SetBuilder[R, I], sb2: SetBuilder[R, I]) -> SetBuilder[R, I]:
+    def __apply_UNTIL__(sb1: SetBuilder, sb2: SetBuilder) -> SetBuilder:
         return AppliedSet('reach', sb2, sb1)
     
     @staticmethod
@@ -47,16 +47,16 @@ class Until[R, I](UNTIL):
 
 ALWAYS = declare('ALWAYS')
 
-class Always[R, I](Not[R, I], ALWAYS):
+class Always(Not, ALWAYS):
     
     __default__ = 'ALWAYS'
 
     @staticmethod
-    def __new_ALWAYS__(arg: TLTLike[R, I]) -> TLT[R, I]:
+    def __new_ALWAYS__(arg: TLTLike) -> TLT:
         return TLT(ALWAYS('_1'), _1=arg)
 
     @staticmethod
-    def __apply_ALWAYS__(sb: SetBuilder[R, I]) -> SetBuilder[R, I]:
+    def __apply_ALWAYS__(sb: SetBuilder) -> SetBuilder:
         return AppliedSet('complement', AppliedSet('avoid', AppliedSet('complement', sb)))
     
     @staticmethod

@@ -1,291 +1,193 @@
-from math import pi
-
+# Generic TLT imports
 from pyspect import *
 from pyspect.langs.ltl import *
+# Hybrid Zonotope imports
+from hz_reachability.hz_impl import HZImpl
+from hz_reachability.systems.cars import CarLinearModel2D, CarLinearModel4D
+from hz_reachability.shapes import HZShapes
+from hz_reachability.spaces import ParkingSpace
 
 TLT.select(ContinuousLTL)
 
-## CONSTANTS ##
+# Option 1: Use the existing set templates or cretate your own (Not implemented for HZ yet).
+# e.g., state_space = ReferredSet('state_space')
 
-LONVEL = (0.3, 0.6) # [m/s]
-LATVEL = (0, 0.2)   # [m/s]
+# Option 2: Use the generic Set method to import any custom shape
+shapes = HZShapes()
+center = Set(shapes.center())
+road_west = Set(shapes.road_west())
+road_east = Set(shapes.road_east())
+road_north = Set(shapes.road_north())
+road_south = Set(shapes.road_south())
 
-RBOUND = (0.8, 1.6) # [m]
+# Example task: Stay in road_e, or road_n UNTIL you REACH exit_n.
+task = Until(Or(road_east, road_north), center)
 
-RI = 1.0    # [m]
-RM = 1.3    # [m]
-RO = 1.6    # [m]
+reach_dynamics = CarLinearModel2D()
 
-PHI_LOOKAHEAD = 2 # [rad]
-TIME_HORIZON = 2 # [s]; comp time horizon
+# Hybrid Zonotope implementation
+impl = HZImpl(dynamics=reach_dynamics, space = ParkingSpace(), time_horizon = 5)
 
-## TRAFFIC RULES ##
+# Solve the problem - Find the states that can satisfy the task
+out = TLT.construct(task).realize(impl)
 
-lonspeed = BoundedSet(v_phi=LONVEL)
-latspeed = BoundedSet(v_r=LATVEL)
+# From string s, shift lines to the right by n spaces
+def shift_lines(s, n):
+    return '\n'.join([' '*n + l for l in s.split('\n')])
+def print_hz(hz):
+    dim = lambda m: "x".join(map(str, m.shape))
+    print(f'Gc<{dim(hz.Gc)}>', shift_lines(str(hz.Gc), 2), sep='\n')
+    print(f'Gb<{dim(hz.Gb)}>', shift_lines(str(hz.Gb), 2), sep='\n')
+    print(f'C<{dim(hz.C)}>', shift_lines(str(hz.C), 2), sep='\n')
+    print(f'Ac<{dim(hz.Ac)}>', shift_lines(str(hz.Ac), 2), sep='\n')
+    print(f'Ab<{dim(hz.Ab)}>', shift_lines(str(hz.Ab), 2), sep='\n')
+    print(f'b<{dim(hz.b)}>', shift_lines(str(hz.b), 2), sep='\n')
 
-## ROUNDABOUT ##
+print_hz(out)
 
-lanes = And(BoundedSet(r=(RI, RO)), lonspeed, latspeed)
-
-inner = And(BoundedSet(r=(RI, RM)), lanes)
-outer = And(BoundedSet(r=(RM, RO)), lanes)
-
-## TASKS ##
-
-stay_inner = Until(inner, inner)
-stay_outer = Until(outer, outer)
-goto_inner = Until(lanes, inner)
-goto_outer = Until(lanes, outer)
-
-import numpy as np
 import hj_reachability as hj
+import hj_reachability.shapes as shp
 
-class HJImpl:
-
-    solver_settings = hj.SolverSettings.with_accuracy("low")
-
-    def __init__(self, dynamics, grid, time_horizon):
-        self.grid = grid
-        self.dynamics = dynamics
-        self.timeline = self.new_timeline(time_horizon)
-           
-    def new_timeline(self, target_time, start_time=0, time_step=0.2):
-        assert time_step > 0
-        is_forward = target_time >= start_time
-        target_time += 1e-5 if is_forward else -1e-5
-        time_step *= 1 if is_forward else -1
-        return np.arange(start_time, target_time, time_step)
-
-
-    def set_axes_names(self, time: str, *names: str) -> None:
-        assert len(names) == self.grid.ndim
-        # HJImpl uses time-state dims convention
-        self._axes_names = (time, *names)
-        self.ndim = len(self._axes_names) 
-
-    def assert_axis(self, ax: int | str) -> None:
-        match ax:
-            case int(i):
-                assert -len(self._axes_names) <= i < len(self._axes_names), \
-                    f'Axis ({i=}) does not exist.'
-            case str(name):
-                assert name in self._axes_names, \
-                    f'Axis ({name=}) does not exist.'
-
-    def axis(self, ax: int | str) -> int:
-        self.assert_axis(ax)
-        match ax:
-            case int(i):
-                return i
-            case str(name):
-                return self._axes_names.index(name)
-
-    def axis_name(self, i: int) -> str:
-        self.assert_axis(i)
-        return self._axes_names[i]
-
-    def axis_is_periodic(self, ax: int | str) -> bool:
-        i = self.axis(ax)
-        # HJImpl uses time-state convention
-        return bool(self.grid._is_periodic_dim[i-1])
-
-
-    def axis_vec(self, ax: int | str):
-        i = self.axis(ax)
-        # HJImpl uses time-state convention
-        if i == 0:
-            shape = (*self.timeline.shape, *[1]*self.grid.ndim)
-            return self.timeline.reshape(shape)
-        else:
-            shape = (1, *self.grid.shape)
-            return self.grid.states[..., i-1].reshape(shape)
-        
-
-    def plane_cut(self, normal, offset, axes=None):
-        # HJImpl uses time-state convention
-        shape = (len(self.timeline), *self.grid.shape)
-        data = np.zeros(shape)
-        axes = axes or list(range(self.ndim))
-        for i, k, m in zip(axes, normal, offset):
-            data -= k*self.axis_vec(i) - k*m
-        return data
-
-
-    def empty(self):
-        shape = (len(self.timeline), *self.grid.shape)
-        return np.ones(shape)*np.inf
-    
-    def complement(self, vf):
-        return np.asarray(-vf)
-    
-    def intersect(self, vf1, vf2):
-        return np.maximum(vf1, vf2)
-
-    def union(self, vf1, vf2):
-        return np.minimum(vf1, vf2)
-    
-    def reachF(self, target, constraints=None):
-        self.dynamics.with_mode('reach')
-        vf = hj.solve(self.solver_settings,
-                      self.dynamics,
-                      self.grid,
-                      self.timeline,
-                      target,
-                      constraints)
-        return np.asarray(vf)
-
-    def reach(self, target, constraints=None):
-        self.dynamics.with_mode('reach')
-        if not self.is_invariant(target):
-            target = np.flip(target, axis=0)
-        if not self.is_invariant(constraints):
-            constraints = np.flip(constraints, axis=0)
-        vf = hj.solve(self.solver_settings,
-                      self.dynamics,
-                      self.grid,
-                      -self.timeline,
-                      target,
-                      constraints)
-        return np.flip(np.asarray(vf), axis=0)
-    
-    def avoid(self, target, constraints=None):
-        self.dynamics.with_mode('avoid')
-        if not self.is_invariant(target):
-            target = np.flip(target, axis=0)
-        if not self.is_invariant(constraints):
-            constraints = np.flip(constraints, axis=0)
-        vf = hj.solve(self.solver_settings,
-                      self.dynamics,
-                      self.grid,
-                      -self.timeline,
-                      target,
-                      constraints)
-        return np.flip(np.asarray(vf), axis=0)
-
-
-    def project_onto(self, vf, *idxs, keepdims=False, union=True):
-        idxs = [len(vf.shape) + i if i < 0 else i for i in idxs]
-        dims = [i for i in range(len(vf.shape)) if i not in idxs]
-        if union:
-            return vf.min(axis=tuple(dims), keepdims=keepdims)
-        else:
-            return vf.max(axis=tuple(dims), keepdims=keepdims)
-
-    def is_invariant(self, vf):
-        return (True if vf is None else
-                vf.shape[0] == 1 if len(vf.shape) == self.ndim else
-                len(vf.shape) == len(self.grid.shape))
-
-    def make_tube(self, vf):
-        return (vf if not self.is_invariant(vf) else
-                np.concatenate([vf[np.newaxis, ...]] * len(self.timeline)))
-
-class HJImplDebugShape(HJImpl):
-    
-    @staticmethod
-    def _shape(vf):
-        return f'<{"x".join(map(str, vf.shape))}>'
-    
-    @staticmethod
-    def _indent(s: str, n: int = 2, skip_first=False) -> str:
-        out = []
-        lines = s.splitlines()
-        if skip_first:
-            line, *lines = lines
-            out.append(line)
-        out += [' '*n + line for line in lines]
-        return '\n'.join(out)
-
-    def plane_cut(self, *args, **kwds):
-        data = super().plane_cut(*args, **kwds)
-        print(s := f'PLANE{self._shape(data)}' + '\n')
-        return data, s
-
-    def empty(self):
-        out = super().empty()
-        print(s := f'EMPTY{self._shape(out)}' + '\n')
-        return out, s
-        
-    def complement(self, inp):
-        print(head := 'neg(')
-        
-        vf, s = inp
-        print(s := self._indent(s) + ',')
-        
-        out = super().complement(vf)
-        print(tail := f') => {self._shape(out)}', '\n')
-        return out, '\n'.join([head, s, tail])
-        
-    
-    def intersect(self, inp1, inp2):
-        print(head := 'max(')
-
-        vf1, s1 = inp1
-        vf2, s2 = inp2
-
-        print(s1 := self._indent(s1) + ',')
-        print(s2 := self._indent(s2) + ',')
-
-        out = super().intersect(vf1, vf2)
-        print(tail := f') => {self._shape(out)}', '\n')
-        return out, '\n'.join([head, s1, s2, tail])
-
-    def union(self, inp1, inp2):
-        print(head := 'min(')
-
-        vf1, s1 = inp1
-        vf2, s2 = inp2
-
-        print(s1 := self._indent(s1) + ',')
-        print(s2 := self._indent(s2) + ',')
-
-        out = super().union(vf1, vf2)
-        print(tail := f') => {self._shape(out)}', '\n')
-        return out, '\n'.join([head, s1, s2, tail])
-    
-    def reach(self, target, constraints=None):
-        print(head := 'reach(')
-
-        vf1, s1 = target
-        vf2, s2 = constraints
-
-        print(s1 := self._indent(s1) + ',')
-        print(s2 := self._indent(s2) + ',')
-
-        out = super().reach(vf1, vf2)
-        print(tail := f') => {self._shape(out)}', '\n')
-        return out, '\n'.join([head, s1, s2, tail])
-
-from hj_reachability.systems import Bicycle5DCircular
+from pyspect.impls.hj_reachability import TVHJImpl
+from hj_reachability.systems import Bicycle4D
 from pyspect.plotting.levelsets import *
 
-reach_dynamics = Bicycle5DCircular(min_steer=-pi/4,
-                                   max_steer=+pi/4,
-                                   min_accel=-0.4,
-                                   max_accel=+0.4)
+from math import pi
 
-#                        r,                  phi,  v_r, v_phi,   v_yaw
-min_bounds = np.array([0.8, 0.5 * -PHI_LOOKAHEAD, -0.2,  +0.3,   -pi/2])
-max_bounds = np.array([1.8,       +PHI_LOOKAHEAD, +0.2,  +0.7,   +pi/2])
+# Define origin and size of area, makes it easier to scale up/down later on 
+X0, XN = -1.2, 2.4
+Y0, YN = -1.2, 2.4
+Z0, ZN = -1.2, 2.4
+
+min_bounds = np.array([   X0,    Y0])
+max_bounds = np.array([XN+X0, YN+Y0])
+grid_space = (51, 51)
+
+# min_bounds = np.array([   X0,    Y0,    Z0])
+# max_bounds = np.array([XN+X0, YN+Y0, ZN+Z0])
+# grid_space = (51,51,51)
+
+# min_bounds = np.array([   X0,    Y0, -pi, 1.0])
+# max_bounds = np.array([XN+X0, YN+Y0, +pi, 0.0])
+# grid_space = (31, 31, 21, 11)
+
 grid = hj.Grid.from_lattice_parameters_and_boundary_conditions(hj.sets.Box(min_bounds, max_bounds),
-                                                               (11, 51, 5, 5, 5),
-                                                               periodic_dims=1)
+                                                               grid_space)
 
-impl = HJImplDebugShape(reach_dynamics, grid, TIME_HORIZON)
-impl.set_axes_names('t', 'r', 'phi', 'v_r', 'v_phi', 'v_yaw')
+dynamics = dict(cls=None)
 
-# out, s = TLT(goto_outer).realize(impl)
-# print(s)
+hj_impl = TVHJImpl(dynamics, grid, 3)
+hj_impl.set_axes_names('t', 'x', 'y')
 
-win_arr = np.ones((len(impl.timeline), *grid.shape))
-win_arr[3:9] = -1
-win = Set((win_arr, f'WIN<{"x".join(map(str, win_arr.shape))}>'))
+from scipy.ndimage import convolve
+import numpy as np
 
-out, s = And(BoundedSet(r=(-0.5, +0.5), phi=(-0.5, +0.5)), win).realize(impl)
-# out = goto_outer.realize(impl)
+def crop_mask(mask):
+    """Reduce a binary mask to the smallest bounding box that includes all True values.
 
-plot3D_levelset(impl.project_onto(out, 0, 1, 2),
-                min_bounds=[0, *min_bounds[:2]],
-                max_bounds=[3, *max_bounds[:2]],
-                xtitle="r [m]", ytitle="phi [rad]")
+    Args:
+        mask (ndarray): N-D boolean mask.
+
+    Returns:
+        cropped_mask (ndarray): Cropped version of the mask.
+        slices (tuple): Tuple of slices that define the cropped region.
+    """
+    if not np.any(mask):  # Check if all False
+        return mask, tuple(slice(0, 0) for _ in range(mask.ndim))  # Empty region
+    
+    # Find min/max indices for each axis
+    slices = tuple(
+        slice(np.min(indices), np.max(indices) + 1)
+        for indices in (np.where(mask) if mask.ndim > 1 else (np.where(mask)[0],))
+    )
+    
+    return mask[slices], slices
+
+def generator(hz, i):
+    Gc, Gb, C, Ac, Ab, b = hz
+    nc = Ac.shape[0]
+    ng = Ac.shape[1]
+
+    C = C.reshape(-1)
+    b = b.reshape(-1)
+    
+    # --- Continuous Constraints ---
+
+    data = -np.inf * np.ones(grid.shape)
+    for i in range(nc):
+        data = np.max(
+            data,
+            shp.hyperplane(grid, normal=Ac[i], offset=[0]*ng, const=b[i]),
+        )
+
+    # --- Continuous Generators ---
+
+    g = Gc[:, i:i+1]
+    data = np.max(
+        data,
+        shp.intersection(
+            shp.cylinder(grid, r=GEN_WIDTH, c=C, axis=g),
+            shp.hyperplane(grid, normal=+g, offset=C+g),
+            shp.hyperplane(grid, normal=-g, offset=C-g),
+        ),
+    )
+
+def hz2hj(hz):
+
+    Gc, Gb, C, Ac, Ab, b = hz
+    ng = Gc.shape[1]
+
+    ## Generators
+
+    I = (generator(hz, 0) <= 0).astype(int)
+
+    for i in np.arange(1, ng):
+        K = (generator(hz, i) <= 0).astype(int)
+        K = crop_mask(K)[0]
+
+        I = convolve(I, K, mode='constant', cval=0) > 0
+
+    vf = 0.5 - (I > 0)
+    return vf
+
+from scipy.signal import correlate
+from tqdm import trange
+
+GEN_WIDTH = np.linalg.norm(grid.spacings)
+
+## ##
+
+fig_select = 2
+fig_kwds = dict(fig_theme='Light')
+
+plot2D_bitmap(
+    # M,
+    **fig_kwds, 
+    fig_enabled=fig_select==0,
+) or \
+plot3D_valuefun(
+    # vf,
+    min_bounds=min_bounds,
+    max_bounds=max_bounds,
+    **fig_kwds,
+    fig_enabled=fig_select==1,
+) or \
+plot_levelsets(
+    # shp.project_onto(vf, 1, 2),
+
+    # (hz2hj(shapes.road_west()), dict(colorscale='blues')),
+    # (hz2hj(shapes.road_east()), dict(colorscale='blues')),
+    # (hz2hj(shapes.road_south()), dict(colorscale='blues')),
+    # (hz2hj(shapes.road_north()), dict(colorscale='blues')),
+    # (hz2hj(shapes.center()), dict(colorscale='greens')),
+
+    (hz2hj(out.astuple()), dict(colorscale='greens')),
+
+    # axes = (0, 1, 2),
+    min_bounds=min_bounds,
+    max_bounds=max_bounds,
+    # plot_func=plot3D_levelset,
+    **fig_kwds,
+    fig_enabled=fig_select==2,
+    fig_width=500, fig_height=500,
+)
