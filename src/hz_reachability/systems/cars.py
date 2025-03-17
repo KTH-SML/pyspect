@@ -120,23 +120,24 @@ class CircularBicycle5DLinearized:
 
         r, phi, v_r, v_phi, w = z0
         a, d = u0
+        L = 0.32
 
         Ac = [[0.0, 0.0, 1.0,          0.0,   0.0],
               [0.0, 0.0, 0.0,          1.0,   0.0],
               [0.0, 0.0, 0.0,            w, v_phi],
               [0.0, 0.0,  -w,          0.0,  -v_r],
-              [0.0, 0.0, 0.0,     tan(d)/L,   0.0]]
+              [0.0, 0.0, 0.0,          d/L,   0.0]]
 
         Bc = [[0.0,                    0.0],
               [0.0,                    0.0],
               [0.0,                    0.0],
               [1.0,                    0.0],
-              [0.0, v_phi/(L*np.cos(d)**2)]]
+              [0.0,                v_phi/L]]
 
         ## Discrete time linearization
 
-        self.A = np.identity(5) + Ac*self.dt
-        self.B = Bc*self.dt
+        self.A = np.identity(5) + np.array(Ac)*self.dt
+        self.B = np.array(Bc)*self.dt
 
         self.AB = np.hstack((self.A, self.B))
         self.input_spacce = self.get_input_space

@@ -54,7 +54,69 @@ class HZImpl:
         self.has_disturbance = False
         self.show_intermediate = show_intermediate
 
-    def complement(self, hz: HybridZonotope, constraint: HybridZonotope) -> HybridZonotope:
+
+    def set_axes_names(self, time: str, *names: str) -> None:
+        names, is_periodic = zip(*[
+            (name[1:], True) if name[0] == '*' else (name, False)
+            for name in names 
+        ])
+        self._axis_is_periodic = is_periodic
+        self._axes_names = (time, *names)
+        self.ndim = len(self._axes_names) 
+
+    def assert_axis(self, ax: int | str) -> None:
+        match ax:
+            case int(i):
+                assert -len(self._axes_names) <= i < len(self._axes_names), \
+                    f'Axis ({i=}) does not exist.'
+            case str(name):
+                assert name in self._axes_names, \
+                    f'Axis ({name=}) does not exist.'
+
+    def axis(self, ax: int | str) -> int:
+        self.assert_axis(ax)
+        match ax:
+            case int(i):
+                return i
+            case str(name):
+                return self._axes_names.index(name)
+
+    def axis_name(self, i: int) -> str:
+        self.assert_axis(i)
+        return self._axes_names[i]
+
+    def axis_is_periodic(self, ax: int | str) -> bool:
+        i = self.axis(ax)
+        return self._axis_is_periodic[i]
+
+
+    def empty(self):
+
+        nz = self.state_space.dim
+        ng = 0
+        nb = 0
+        nc = 0
+        
+        ## State Expression ##
+
+        C = np.zeros((nz, 1))
+
+        Gc = np.zeros((nz, ng))
+
+        Gb = np.zeros((nz, nb))
+
+        ## Constraints Expression ##
+
+        Ac = np.zeros((nc, ng))
+
+        Ab = np.zeros((nc, nb))
+
+        b = np.zeros((nc, 1))
+
+        return HybridZonotope(Gc = Gc, Gb = Gb, C = C, Ac = Ac, Ab = Ab, b = b)
+
+
+    def complement(self, hz: HybridZonotope, constraint: HybridZonotope = None) -> HybridZonotope:
         """
         Description
         ------------        
@@ -80,6 +142,9 @@ class HZImpl:
             - type: HybridZonotope
             - desc: The complement of the over-approximated (as a constrained zonotope) hybrid zonotope within the 'constraint' space.
         """
+        if constraint is None:
+            constraint = self.state_space
+
         cz = self.oa_hz_to_cz(hz)
         
         G = cz.G; C = cz.C; A = cz.A; b = cz.b
@@ -407,6 +472,35 @@ class HZImpl:
 
         return avoid_set
     
+    def plane_cut(self, normal, offset, axes=None):
+
+        nz = self.state_space.dim 
+
+        axes = list(axes or range(nz))
+
+        assert len(axes) == len(normal) == len(offset)
+        normal = np.array(normal).reshape(-1, 1)
+        offset = np.array(offset).reshape(-1, 1)
+
+        ## State Expression ##
+
+        C = offset
+
+        Gc = np.identity(nz)
+
+        Gb = np.zeros((nz, 0))
+
+        ## Constraints Expression ##
+
+        Ac = normal.T / np.linalg.norm(normal)
+
+        Ab = np.zeros((1, 0))
+
+        b = np.array([[0.0]])
+
+        return HybridZonotope(Gc = Gc, Gb = Gb, C = C, Ac = Ac, Ab = Ab, b = b)
+
+
 
     ############################################################################################################
     # Auxiliary Methods

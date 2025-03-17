@@ -77,7 +77,6 @@ class TVHJImpl:
             data -= k*self.axis_vec(i) - k*m
         return data
 
-
     def empty(self):
         shape = (len(self.timeline), *self.grid.shape)
         return np.ones(shape)*np.inf

@@ -140,21 +140,25 @@ class ParkingSpace:
 
 class EmptySpace:
     
-    def __init__(self):
-        PHI_LOOKAHEAD = 2 # [rad]
-        self.max_bounds = np.array([1.8,       +PHI_LOOKAHEAD])
-        self.min_bounds = np.array([0.8, 0.5 * -PHI_LOOKAHEAD])
+    def __init__(self, min_bounds, max_bounds):
+        assert len(min_bounds) == len(max_bounds)
+        self.N = len(min_bounds)
+        self.max_bounds = max_bounds
+        self.min_bounds = min_bounds
         self.zono_op = ZonoOperations()
         self.remove_redundant = False
 
     @property
     def state_space(self):
+        ng = self.N; nc = 0; nb = 0
+        
         Gc = np.diag(self.max_bounds - self.min_bounds) / 2
-        Gb = np.zeros((2, 2))
         c = np.array(self.max_bounds + self.min_bounds).reshape(-1, 1) / 2
-        Ac = np.zeros((0, 2))
-        Ab = np.zeros((0, 2))
-        b = np.zeros((0, 1))
+
+        Gb = np.zeros((ng, nb))
+        Ac = np.zeros((nc, ng))
+        Ab = np.zeros((nc, nb))
+        b = np.zeros((nc, 1))
 
         return HybridZonotope(Gc, Gb, c, Ac, Ab, b)
 

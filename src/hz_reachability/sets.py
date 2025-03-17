@@ -26,11 +26,10 @@ class HybridZonotope:
         - b : vector of linear constraints of dimensions (nc, 1), nc is the number of constraints
         """
 
-        assert C.shape[0] == Gc.shape[0] == Gb.shape[0], 'Center and generators must have the same dimension'
+        assert C.shape[0] == Gc.shape[0] == Gb.shape[0], 'c, Gc and Gb must match in state space'
         assert Gc.shape[1] == Ac.shape[1], 'Number of columns in Ac must match number of continuous generators'
         assert Gb.shape[1] == Ab.shape[1], 'Number of columns in Ab must match number of binary generators'
         assert Ac.shape[0] == Ab.shape[0] == b.shape[0], 'Number of constraints must be consinstent across Ac, Ab, and b'
-
         
         self.C = C.reshape(-1, 1)   # Reshape center
         self.Gc = Gc
@@ -40,7 +39,7 @@ class HybridZonotope:
         self.b = b
 
     def astuple(self) -> tuple:
-        return (self.Gc, self.Gb, self.C, self.Ac, self.Ab, self.b)
+        return (self.C, self.Gc, self.Gb, self.Ac, self.Ab, self.b)
 
     @property
     def dim(self) -> int:

@@ -7,109 +7,143 @@ from hz_reachability.sets import HybridZonotope
 
 class HZShapes:
 
+    nz = 5
+    ng = 2
+    nc = 0
+    nb = 0
+
     def center(self):
-        """
-        Description
-        ------------
 
-        Parameters
-        -----------
+        ## State Expression ##
 
-        Returns
-        -----------      
-        """
-        ng = 2; nc = 0; nb = 0
-        # Continuous components
-        C = np.zeros((2, 1))
-        Gc = np.array([
+        C = np.zeros((self.nz, 1))
+
+        Gc = np.zeros((self.nz, self.ng))
+        Gc[:2, :2] = np.array([
             [0.1, 0.0],
             [0.0, 0.1]
         ])
-        Ac = np.zeros((nc, 2))
+
+        Gb = np.zeros((self.nz, self.nb))
+
+        ## Constraints Expression ##
+
+        Ac = np.zeros((self.nc, self.ng))
         
-        # Binary components
-        b = np.zeros((nc, 1))
-        Gb = np.zeros((ng, nb))
-        Ab = np.zeros((nc, nb))
+        Ab = np.zeros((self.nc, self.nb))
+
+        b = np.zeros((self.nc, 1))
 
         return HybridZonotope(Gc = Gc, Gb = Gb, C = C, Ac = Ac, Ab = Ab, b = b)
     
     def road_west(self):
-        ng = 2; nc = 0; nb = 0
-        # Continuous components
-        C = np.array([
+
+        ## State Expression ##
+
+        C = np.zeros((self.nz, 1))
+        C[:2] = np.array([
             [-0.55],
             [0.0]
         ])
-        Gc = np.array([
+
+        Gc = np.zeros((self.nz, self.ng))
+        Gc[:2, :2] = np.array([
             [0.45, 0.00],
             [0.00, 0.1]
         ])
-        Ac = np.zeros((nc, 2))
 
-        # Binary components
-        b = np.zeros((nc, 1))
-        Gb = np.zeros((ng, nb))
-        Ab = np.zeros((nc, nb))
+        Gb = np.zeros((self.nz, self.nb))
+
+        ## Constraints Expression ##
+
+        Ac = np.zeros((self.nc, self.ng))
+
+        Ab = np.zeros((self.nc, self.nb))
+
+        b = np.zeros((self.nc, 1))
 
         return HybridZonotope(Gc = Gc, Gb = Gb, C = C, Ac = Ac, Ab = Ab, b = b)
 
     def road_east(self):
-        ng = 2; nc = 0; nb = 0
-        # Continuous components
-        C = np.array([
+
+        ## State Expression ##
+
+        C = np.zeros((self.nz, 1))
+        C[:2] = np.array([
             [0.55],
             [0.0]
         ])
-        Gc = np.array([
+
+        Gc = np.zeros((self.nz, self.ng))
+        Gc[:2, :2] = np.array([
             [0.45, 0.00],
             [0.00, 0.1]
         ])
-        Ac = np.zeros((nc, 2))
 
-        # Binary components
-        b = np.zeros((nc, 1))
-        Gb = np.zeros((ng, nb))
-        Ab = np.zeros((nc, nb))
+        Gb = np.zeros((self.nz, self.nb))
+
+        ## Constraints Expression ##
+
+        Ac = np.zeros((self.nc, self.ng))
+
+        Ab = np.zeros((self.nc, self.nb))
+
+        b = np.zeros((self.nc, 1))
 
         return HybridZonotope(Gc = Gc, Gb = Gb, C = C, Ac = Ac, Ab = Ab, b = b)
 
     def road_north(self):
-        ng = 2; nc = 0; nb = 0
-        # Continuous components
-        C = np.array([
+
+        ## State Expression ##
+
+        C = np.zeros((self.nz, 1))
+        C[:2] = np.array([
             [0.0],
             [0.55]
         ])
-        Gc = np.array([
+
+        Gc = np.zeros((self.nz, self.ng))
+        Gc[:2, :2] = np.array([
             [0.1, 0.00],
             [0.00, 0.45]
         ])
-        Ac = np.zeros((nc, 2))
 
-        # Binary components
-        b = np.zeros((nc, 1))
-        Gb = np.zeros((ng, nb))
-        Ab = np.zeros((nc, nb))
+        Gb = np.zeros((self.nz, self.nb))
+
+        ## Constraints Expression ##
+
+        Ac = np.zeros((self.nc, self.ng))
+
+        Ab = np.zeros((self.nc, self.nb))
+
+        b = np.zeros((self.nc, 1))
 
         return HybridZonotope(Gc = Gc, Gb = Gb, C = C, Ac = Ac, Ab = Ab, b = b)
 
     def road_south(self):
-        ng = 2; nc = 0; nb = 0
-        # Continuous components
-        C = np.array([
+
+        ## State Expression ##
+
+        C = np.zeros((self.nz, 1))
+        C[:2] = np.array([
             [0.0],
             [-0.55]
         ])
-        Gc = np.array([
+
+        Gc = np.zeros((self.nz, self.ng))
+        Gc[:2, :2] = np.array([
             [0.1, 0.00],
             [0.00, 0.45]
         ])
-        Ac = np.zeros((nc, 2))
 
-        # Binary components
-        b = np.zeros((nc, 1))
-        Gb = np.zeros((ng, nb))
-        Ab = np.zeros((nc, nb))
+        Gb = np.zeros((self.nz, self.nb))
+
+        ## Constraints Expression ##
+
+        Ac = np.zeros((self.nc, self.ng))
+
+        Ab = np.zeros((self.nc, self.nb))
+
+        b = np.zeros((self.nc, 1))
 
         return HybridZonotope(Gc = Gc, Gb = Gb, C = C, Ac = Ac, Ab = Ab, b = b)
