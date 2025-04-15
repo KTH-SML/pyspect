@@ -5,18 +5,19 @@ from abc import abstractmethod
 __all__ = (
     'declare',
     'define',
+    'assert_complete',
 )
 
 
-def declare(name: str) -> LanguageFragmentMeta:
-    return LanguageFragmentMeta(name, (), {
+def declare(name: str) -> PrimitiveSetMeta:
+    return PrimitiveSetMeta(name, (), {
         '__isprimitive__': True,    # direct declaration is only for primitives
         f'__apply_{name}__': abstractmethod(lambda: None),
         f'__check_{name}__': abstractmethod(lambda: None),
     })
 
 
-def define(primitive: Expr, formula: Expr, *depends: LanguageFragmentMeta) -> LanguageFragmentMeta:
+def define(primitive: Expr, formula: Expr, *depends: PrimitiveSetMeta) -> PrimitiveSetMeta:
     primitive = canonicalize(primitive)
     formula = canonicalize(formula)
     head, *tail = primitive
@@ -61,7 +62,7 @@ def define(primitive: Expr, formula: Expr, *depends: LanguageFragmentMeta) -> La
         getfunc = lambda op: getattr(cls, f'__check_{op}__')
         return recurse(getfunc, formula, *args)
 
-    cls = LanguageFragmentMeta(p_name.capitalize(), depends, {
+    cls = PrimitiveSetMeta(p_name.capitalize(), depends, {
         '__default__': p_name,
         f'__new_{p_name}__': new,
         f'__apply_{p_name}__': apply,
@@ -69,4 +70,11 @@ def define(primitive: Expr, formula: Expr, *depends: LanguageFragmentMeta) -> La
     })
 
     assert cls.is_modelling(formula), 'Formula contains unsupported fragments.'
+    return cls
+
+def assert_complete(cls):
+    assert cls.is_complete(), (
+        f"Language '{cls.__name__}' is not complete. "
+        f"Please implement {cls.__abstractmethods__}."
+    )
     return cls

@@ -196,11 +196,11 @@ def solve(solver_settings, dynamics, grid, times, target, constraint=None, progr
             return (j, vf), vf
     else:
         def f(carry, j):
-            i, vf = carry
-            vf = step(solver_settings, dynamics, grid, times[i], vf, times[j+1])
-            vf = jnp.minimum(vf, target if is_target_invariant else target[j+1])
-            vf = jnp.maximum(vf, constraint if is_constraint_invariant else constraint[j+1])
-            return (j, vf), vf
+            i, _vf = carry
+            _vf = step(solver_settings, dynamics, grid, times[i], _vf, times[j+1])
+            _vf = jnp.minimum(_vf, target if is_target_invariant else target[j+1])
+            _vf = jnp.maximum(_vf, constraint if is_constraint_invariant else constraint[j+1])
+            return (j, _vf), _vf
 
     if progress_bar:
         decorator = scan_tqdm(len(times)-1)
@@ -210,7 +210,7 @@ def solve(solver_settings, dynamics, grid, times, target, constraint=None, progr
         vf[jnp.newaxis],
         jax.lax.scan(f, (0, vf), jnp.arange(len(times)-1))[1]
     ])
-    
+
 ### NumPy thing ###
 
 # def solve(solver_settings, dynamics, grid, timeline, target_vf, constraint_vf=None, progress_bar=True):
@@ -225,31 +225,27 @@ def solve(solver_settings, dynamics, grid, times, target, constraint=None, progr
 #             ys.append(y)
 #         return np.stack(ys)
 
-#     ctx = (_try_get_progress_bar(timeline[0], timeline[-1]) if progress_bar is True else
-#            contextlib.nullcontext(progress_bar))
-#     with ctx as bar:
-
-#         if constraint_vf is None:
-#             def f(carry, j):
-#                 i, vf = carry
-#                 vf = step(solver_settings, dynamics, grid, timeline[i], vf, timeline[j], bar)
-#                 vf = jnp.minimum(vf, target_vf if is_target_invariant else target_vf[j])
-#                 return (j, vf), np.array(vf)
-#         else:
-#             def f(carry, j):
-#                 i, vf = carry
-#                 vf = step(solver_settings, dynamics, grid, timeline[i], vf, timeline[j], bar)
-#                 vf = jnp.minimum(vf, target_vf if is_target_invariant else target_vf[j])
-#                 vf = jnp.maximum(vf, constraint_vf if is_constraint_invariant else constraint_vf[j])
-#                 return (j, vf), np.array(vf)
-
-#         vf = target_vf if is_target_invariant else target_vf[0]
-#         if constraint_vf is not None:
-#             vf = np.maximum(vf, constraint_vf if is_constraint_invariant else constraint_vf[0])
-#         return np.concatenate([
-#             vf[np.newaxis],
-#             scan(f, (0, jnp.array(vf)), range(1, len(timeline))),
-#         ])
+#     if constraint_vf is None:
+#         def f(carry, j):
+#             i, vf = carry
+#             vf = step(solver_settings, dynamics, grid, timeline[i], vf, timeline[j])
+#             vf = jnp.minimum(vf, target_vf if is_target_invariant else target_vf[j])
+#             return (j, vf), np.array(vf)
+#     else:
+#         def f(carry, j):
+#             i, vf = carry
+#             vf = step(solver_settings, dynamics, grid, timeline[i], vf, timeline[j])
+#             vf = jnp.minimum(vf, target_vf if is_target_invariant else target_vf[j])
+#             vf = jnp.maximum(vf, constraint_vf if is_constraint_invariant else constraint_vf[j])
+#             return (j, vf), np.array(vf)
+            
+#     vf = target_vf if is_target_invariant else target_vf[0]
+#     if constraint_vf is not None:
+#         vf = np.maximum(vf, constraint_vf if is_constraint_invariant else constraint_vf[0])
+#     return np.concatenate([
+#         vf[np.newaxis],
+#         scan(f, (0, jnp.array(vf)), range(1, len(timeline))),
+#     ])
 
 # @functools.partial(jax.jit, static_argnames=("dynamics", "progress_bar"))
 # def solve(solver_settings, dynamics, grid, times, initial_values, progress_bar=True):

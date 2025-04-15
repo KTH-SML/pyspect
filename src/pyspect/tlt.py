@@ -6,12 +6,12 @@ from typing import Optional, TypeVar, Generic, Dict, Union, Callable
 
 from .idict import *
 from .impls.base import *
-from .langs.base import *
 from .set_builder import *
+from .primitives.base import *
 
 __all__ = (
     'TLT',
-    'TLTLike',
+    # 'TLTLike',
     'APPROXDIR',
 )
 
@@ -46,7 +46,7 @@ class APPROXDIR(Enum):
 
     def __radd__(self, other): return self.__add__(other)
 
-    def __add__(self, other: Union['APPROXDIR', int]) -> 'APPROXDIR':
+    def __add__(self, other: 'APPROXDIR | int') -> 'APPROXDIR':
         lhs = self.value
         rhs = other.value if isinstance(other, APPROXDIR) else other
         return APPROXDIR(None if None in (lhs, rhs) else
@@ -54,18 +54,18 @@ class APPROXDIR(Enum):
 
     def __rmul__(self, other): return self.__mul__(other)
 
-    def __mul__(self, other: Union['APPROXDIR', int]) -> 'APPROXDIR':
+    def __mul__(self, other: 'APPROXDIR | int') -> 'APPROXDIR':
         lhs = self.value
         rhs = other.value if isinstance(other, APPROXDIR) else other
         return APPROXDIR(None if None in (lhs, rhs) else
                          lhs * rhs)
 
 
-type SetMap = idict[str, Optional[SetBuilder]]
+# type SetMap = idict[str, Optional[SetBuilder]]
 
-type TLTLike = Union[TLTFormula, SetBuilder, 'TLT']
+# type TLTLike = Union[TLTFormula, SetBuilder, 'TLT']
 
-type TLTLikeMap = Dict[str, TLTLike]
+# type TLTLikeMap = Dict[str, TLTLike]
 
 
 class TLT(ImplClient):
@@ -91,10 +91,10 @@ class TLT(ImplClient):
         cls.__language__ = lang
 
     @classmethod
-    def construct(cls, arg: TLTLike, **kwds: TLTLike) -> 'TLT':
+    def construct(cls, arg: 'TLTLike', **kwds: 'TLTLike') -> 'TLT':
         return cls(arg, **kwds)
 
-    def __new__(cls, arg: TLTLike, **kwds: TLTLike) -> 'TLT':
+    def __new__(cls, arg: 'TLTLike', **kwds: 'TLTLike') -> 'TLT':
         if cls.__debug: kwds.update(cls.__debug)
         return (cls.__new_from_tlt__(arg, **kwds)      if isinstance(arg, TLT) else
                 cls.__new_from_prop__(arg, **kwds)     if isinstance(arg, str) else
@@ -102,7 +102,7 @@ class TLT(ImplClient):
                 cls.__new_from_formula__(arg, **kwds))
 
     @classmethod
-    def __new_from_tlt__(cls, tlt: 'TLT', **kwds: TLTLikeMap) -> 'TLT':
+    def __new_from_tlt__(cls, tlt: 'TLT', **kwds: 'TLTLikeMap') -> 'TLT':
         # Hacky debug helpers
         __debug: dict = {k: kwds.pop(k) for k in list(kwds) if k.startswith('__debug')}
         __debug_print: bool = __debug.get('__debug_print', False)
@@ -123,7 +123,7 @@ class TLT(ImplClient):
         return cls.__new_from_formula__(tlt._formula, **kwds, **__debug)
 
     @classmethod
-    def __new_from_prop__(cls, prop: str, **kwds: TLTLikeMap) -> 'TLT':
+    def __new_from_prop__(cls, prop: str, **kwds: 'TLTLikeMap') -> 'TLT':
         # Hacky debug helpers
         __debug: dict = {k: kwds.pop(k) for k in list(kwds) if k.startswith('__debug')}
         __debug_print: bool = __debug.get('__debug_print', False)
@@ -137,7 +137,7 @@ class TLT(ImplClient):
                 cls.__new_init__(formula, ReferredSet(prop), setmap={prop: None}))
 
     @classmethod
-    def __new_from_builder__(cls, sb: SetBuilder, **kwds: TLTLikeMap) -> 'TLT':
+    def __new_from_builder__(cls, sb: SetBuilder, **kwds: 'TLTLikeMap') -> 'TLT':
         # Hacky debug helpers
         __debug: dict = {k: kwds.pop(k) for k in list(kwds) if k.startswith('__debug')}
         __debug_print: bool = __debug.get('__debug_print', False)
@@ -162,7 +162,7 @@ class TLT(ImplClient):
         return self
 
     @classmethod
-    def __new_from_formula__(cls, formula: TLTFormula, **kwds: TLTLikeMap) -> 'TLT':
+    def __new_from_formula__(cls, formula: 'TLTFormula', **kwds: 'TLTLikeMap') -> 'TLT':
         # Hacky debug helpers
         __debug: dict = {k: kwds.pop(k) for k in list(kwds) if k.startswith('__debug')}
         __debug_print: bool = __debug.get('__debug_print', False)
@@ -221,10 +221,10 @@ class TLT(ImplClient):
 
         return self
 
-    _formula: TLTFormula
+    _formula: 'TLTFormula'
     _builder: SetBuilder
     _approx: APPROXDIR
-    _setmap: SetMap
+    _setmap: 'SetMap'
 
     def __repr__(self) -> str:
         cls = type(self).__name__
@@ -233,7 +233,7 @@ class TLT(ImplClient):
         formula = str(self._formula)
         return f'{cls}<{lang}>({approx}, {formula})'
 
-    def where(self, **kwds: TLTLike) -> 'TLT':
+    def where(self, **kwds: 'TLTLike') -> 'TLT':
         return TLT(self, **kwds)
 
     def realize(self, impl: 'I', memoize=False) -> 'R':
@@ -260,7 +260,7 @@ class TLT(ImplClient):
         else:
             return True
     
-    def iter_frml(self, formula: Optional[TLTFormula] = None, **kwds):
+    def iter_frml(self, formula: Optional['TLTFormula'] = None, **kwds):
         only_terminals = kwds.get('only_terminals', False)
         if formula is None:
             formula = self._formula
@@ -274,5 +274,5 @@ class TLT(ImplClient):
         yield from filter(lambda p: self._setmap[p] is None, self._setmap)
 
 
-def Identity(arg: TLTLike) -> TLT:
+def Identity(arg: 'TLTLike') -> TLT:
     return TLT(arg)

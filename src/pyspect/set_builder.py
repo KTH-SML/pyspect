@@ -2,7 +2,7 @@
 ## Set Builder
 
 from abc import ABCMeta, abstractmethod
-from typing import TYPE_CHECKING, Self, Never
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing_protocol_intersection import ProtocolIntersection as All
@@ -19,6 +19,9 @@ __all__ = (
     'EMPTY',
     'HalfSpaceSet',
     'BoundedSet',
+    'Compl',
+    'Inter',
+    'Union',
 )
 
 
@@ -32,7 +35,7 @@ class SetBuilder(ImplClient, metaclass=SetBuilderMeta):
     free: tuple[str, ...] = ()
 
     @abstractmethod
-    def __call__(self, impl: 'I', **m: Self) -> Never | 'R': ...
+    def __call__(self, impl: 'I', **m) -> 'R': ...
 
     def __repr__(self) -> str:
         cls = type(self)
@@ -41,7 +44,7 @@ class SetBuilder(ImplClient, metaclass=SetBuilderMeta):
 
 class AbsurdSet(SetBuilder):
     
-    def __call__(self, impl: 'I', **m: SetBuilder) -> Never:
+    def __call__(self, impl: 'I', **m: SetBuilder):
         raise ValueError("Cannot realize the absurd set.")
 
 ABSURD: AbsurdSet = AbsurdSet()
@@ -59,7 +62,7 @@ class ReferredSet(SetBuilder):
     def __init__(self, name: str) -> None:
         self.free += (name,)
 
-    def __call__(self, impl: 'I', **m: SetBuilder) -> Never | 'R':
+    def __call__(self, impl: 'I', **m: SetBuilder) -> 'R':
         name, = self.free
         sb = m.pop(name)
         return sb(impl, **m)
@@ -78,20 +81,27 @@ class AppliedSet(SetBuilder):
 
         self.add_requirements(_require)        
 
-    def __call__(self, impl: 'I', **m: SetBuilder) -> Never | 'R':
+    def __call__(self, impl: 'I', **m: SetBuilder) -> 'R':
         try:
-            args = [sb(impl, **m) for sb in self.builders]
             func = getattr(impl, self.funcname)
-            return func(*args)
-        except Exception as e:
-            E = type(e)
-            raise E(f'When applying "{self.funcname}", received: {e!s}')
+        except AttributeError as e:
+            raise AttributeError(f'Impl {impl.__class__.__name__} does not support "{self.funcname}".') from e
+        
+        args = []
+        for i, sb in enumerate(self.builders):
+            try:
+                args.append(sb(impl, **m))
+            except Exception as e:
+                E = type(e)
+                raise E(f'When applying "{self.funcname}" on argument {i}, received: {e!s}') from e
+        
+        return func(*args)
 
 
 ## ## ## ## ## ## ## ## ## ##
 ## User-friendly Primitives
 
-class EmptySet[R, I: HasEmpty](SetBuilder):
+class EmptySet(SetBuilder):
 
     __require__ = ('empty',)
     
@@ -100,16 +110,22 @@ class EmptySet[R, I: HasEmpty](SetBuilder):
     
 EMPTY: EmptySet = EmptySet()
 
-class HalfSpaceSet[R, I: HasPlaneCut, **P](SetBuilder):
+class HalfSpaceSet(SetBuilder):
 
     __require__ = ('plane_cut',)
 
-    def __init__(self, *args: P.args, **kwds: P.kwargs) -> None:
-        self.args = args
+    def __init__(self, normal, offset, axes, **kwds) -> None:
+        self.normal = normal
+        self.offset = offset
+        self.axes = axes
         self.kwds = kwds
     
     def __call__(self, impl: 'I', **m: SetBuilder) -> 'R':
-        return impl.plane_cut(*self.args, **self.kwds)
+        return impl.plane_cut(normal=self.normal, 
+                              offset=self.offset, 
+                              axes=[impl.axis(ax) 
+                                    for ax in self.axes],
+                              **self.kwds)
 
 class BoundedSet(SetBuilder):
 
@@ -120,16 +136,29 @@ class BoundedSet(SetBuilder):
 
     def __call__(self, impl: 'I', **m: SetBuilder) -> 'R':
         s = impl.complement(impl.empty())
-        _bounds = [(vmin, vmax, impl.axis(name))
-                   for name, (vmin, vmax) in self.bounds.items()]
-        for vmin, vmax, i in _bounds:
-            if vmax < vmin and impl.axis_is_periodic(i):
+        for name, (vmin, vmax) in self.bounds.items():
+            i = impl.axis(name)
+            if vmin is Ellipsis:
+                assert vmax is not Ellipsis, f'Invalid bounds for axis {impl.axis_name(i)}, there must be either an upper or lower bound.'
+                upper_bound = impl.plane_cut(normal=[0 if i != j else -1 for j in range(impl.ndim)],
+                                             offset=[0 if i != j else vmax for j in range(impl.ndim)])
+                axis_range = upper_bound
+            elif vmax is Ellipsis:
+                assert vmin is not Ellipsis, f'Invalid bounds for axis {impl.axis_name(i)}, there must be either an upper or lower bound.'
+                lower_bound = impl.plane_cut(normal=[0 if i != j else +1 for j in range(impl.ndim)],
+                                             offset=[0 if i != j else vmin for j in range(impl.ndim)])
+                axis_range = lower_bound
+            elif impl.axis_is_periodic(i) and vmax < vmin:
                 upper_bound = impl.plane_cut(normal=[0 if i != j else -1 for j in range(impl.ndim)],
                                              offset=[0 if i != j else vmin for j in range(impl.ndim)])
                 lower_bound = impl.plane_cut(normal=[0 if i != j else +1 for j in range(impl.ndim)],
                                              offset=[0 if i != j else vmax for j in range(impl.ndim)])
                 axis_range = impl.complement(impl.intersect(upper_bound, lower_bound))
             else:
+                # NOTE: See similar assertion in TVHJImpl's plane_cut
+                amin, amax = impl.axis_bounds(i)
+                assert amin < vmin < amax, f'For dimension "{name}", {amin} < {vmin=} < {amax}. Use Ellipsis (...) to indicate subset stretching to the space boundary.'
+                assert amin < vmax < amax, f'For dimension "{name}", {amin} < {vmax=} < {amax}. Use Ellipsis (...) to indicate subset stretching to the space boundary.'
                 upper_bound = impl.plane_cut(normal=[0 if i != j else -1 for j in range(impl.ndim)],
                                              offset=[0 if i != j else vmax for j in range(impl.ndim)])
                 lower_bound = impl.plane_cut(normal=[0 if i != j else +1 for j in range(impl.ndim)],
@@ -137,3 +166,16 @@ class BoundedSet(SetBuilder):
                 axis_range = impl.intersect(upper_bound, lower_bound)
             s = impl.intersect(s, axis_range)
         return s
+
+## ## ## ## ## ## ## ## ## ##
+## User-friendly Operations
+
+def Compl(*args: SetBuilder) -> SetBuilder:
+    return AppliedSet('complement', *args)
+
+def Inter(*args: SetBuilder) -> SetBuilder:
+    return AppliedSet('intersect', *args)
+
+def Union(*args: SetBuilder) -> SetBuilder:
+    return AppliedSet('union', *args)
+   

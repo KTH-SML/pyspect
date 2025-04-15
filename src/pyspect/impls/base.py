@@ -1,5 +1,5 @@
 
-from typing import ClassVar, Self, Optional, Union, Tuple, Set, Dict, Any
+from typing import ClassVar, Optional, Union, Tuple, Set, Dict, Any
 
 class Impl: ...
 

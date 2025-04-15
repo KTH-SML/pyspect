@@ -1,11 +1,11 @@
 from abc import ABCMeta
-from typing import ClassVar, Self, Optional, Union, Tuple, Set, Dict, Any
+from typing import ClassVar, Optional, Union, Tuple, Set, Dict, Any
 from contextlib import contextmanager
 
 __all__ = (
     'Expr',
     'canonicalize',
-    'LanguageFragmentMeta',
+    'PrimitiveSetMeta',
     'Void',
 )
 
@@ -21,7 +21,7 @@ def canonicalize(expr: Expr) -> Expr:
     head, *tail = expr
     return (head, *map(canonicalize, tail))
 
-class LanguageFragmentMeta(ABCMeta, type):
+class PrimitiveSetMeta(ABCMeta, type):
 
     # Cannot be set. Indicates if the fragment is a single primitive operator
     __isprimitive__: ClassVar[bool]
@@ -46,7 +46,7 @@ class LanguageFragmentMeta(ABCMeta, type):
             primitives.add(name)
         else:
             for base in bases:
-                if isinstance(base, LanguageFragmentMeta):
+                if isinstance(base, PrimitiveSetMeta):
                     primitives = primitives.union(base.__primitives__)
 
         # Assign primitives to the newly constructed language class
@@ -95,4 +95,4 @@ class LanguageFragmentMeta(ABCMeta, type):
 # The Void fragment is a singleton for a trivial language that 
 # puts no restriction on the implementation. It has only one 
 # purpose, to be the by default selected language of TLTs.
-Void = LanguageFragmentMeta('Void', (), {})
+Void = PrimitiveSetMeta('Void', (), {})

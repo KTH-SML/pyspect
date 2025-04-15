@@ -9,9 +9,10 @@ from .tools import *
 
 __all__ = (
     ## Primitives
-    'NOT', 'AND', 'OR',
+    'NOT', 'AND', 'OR', 'TRUTHIFY', 'FALSIFY',
     ## TLT Operators and Fragments
     'Not', 'And', 'Or',
+    'Falsify', 'Truthify',
     'Minus', 'Implies',
     'Propositional',
 )
@@ -22,13 +23,14 @@ __all__ = (
 
 NOT = declare('NOT')
 
+@assert_complete
 class Not(NOT):
 
     __default__ = 'NOT'
     __require__ = ('complement',)
 
     @staticmethod
-    def __new_NOT__(arg: TLTLike) -> TLT:
+    def __new_NOT__(arg: 'TLTLike') -> TLT:
         return TLT(NOT('_1'), _1=arg)
 
     @staticmethod
@@ -45,12 +47,13 @@ class Not(NOT):
 
 AND = declare('AND')
 
-class And[R, I: Impl](AND):
+@assert_complete
+class And(AND):
 
     __default__ = 'AND'
 
     @staticmethod
-    def __new_AND__(lhs: TLTLike, rhs: TLTLike, *args: TLTLike) -> TLT:
+    def __new_AND__(lhs: 'TLTLike', rhs: 'TLTLike', *args: 'TLTLike') -> TLT:
         if args:
             lhs, rhs = And(lhs, rhs, *args[:-1]), args[-1]
         return TLT(AND('_1', '_2'), _1=lhs, _2=rhs)
@@ -72,13 +75,14 @@ class And[R, I: Impl](AND):
 
 OR = declare('OR')
 
+@assert_complete
 class Or(OR):
 
     __default__ = 'OR'
     __require__ = ('union',)
 
     @staticmethod
-    def __new_OR__(lhs: TLTLike, rhs: TLTLike, *args: TLTLike) -> TLT:
+    def __new_OR__(lhs: 'TLTLike', rhs: 'TLTLike', *args: 'TLTLike') -> TLT:
         if args:
             lhs, rhs = Or(lhs, rhs, *args[:-1]), args[-1]
         return TLT(OR('_1', '_2'), _1=lhs, _2=rhs)
@@ -96,6 +100,35 @@ class Or(OR):
                 APPROXDIR.INVALID)
 
 
+## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
+## Hack: Unconditional Falsification / Truthification
+
+FALSIFY = declare('FALSIFY')
+
+@assert_complete
+class Falsify(FALSIFY):
+
+    __default__ = 'FALSIFY'
+    __require__ = ('empty',)
+
+    @staticmethod
+    def __new_FALSIFY__(arg: 'TLTLike') -> TLT:
+        return TLT(FALSIFY('_1'), _1=arg)
+
+    @staticmethod
+    def __apply_FALSIFY__(_: SetBuilder) -> SetBuilder:
+        return EMPTY
+    
+    @staticmethod
+    def __check_FALSIFY__(a: APPROXDIR) -> APPROXDIR:
+        return APPROXDIR.EXACT
+
+TRUTHIFY = declare('TRUTHIFY')
+Truthify = define(TRUTHIFY('_1'),
+                  NOT(FALSIFY('_1')),
+                  NOT, FALSIFY)
+
+
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 ## Propositional
 
@@ -103,22 +136,28 @@ MINUS = declare('MINUS')
 Minus = define(
     MINUS('lhs', 'rhs'),
     AND('lhs', NOT('rhs')),
-    Not, And,
+    NOT, AND,
 )
 
 IMPLIES = declare('IMPLIES')
 Implies = define(
     IMPLIES('lhs', 'rhs'),
-    OR('lhs', NOT('rhs')),
-    Not, Or,
+    OR(NOT('lhs'), 'rhs'),
+    NOT, OR,
 )
 
+
+@assert_complete
 class PropositionalNoOr(
     Minus,
+    Truthify, Falsify,
     Not, And, 
 ): ...
 
+
+@assert_complete
 class Propositional(
     Minus, Implies, 
+    Truthify, Falsify,
     Not, And, Or,
 ): ...

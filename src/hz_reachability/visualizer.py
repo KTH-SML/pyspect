@@ -151,7 +151,10 @@ class ZonoVisualizer:
             color = colors
             # color = [0.423, 0.556, 0.749, 1.0]
 
-            poly = Polygon(vertices, closed = True, fill = True, facecolor = (color[0], color[1], color[2]),  alpha = color[3], zorder = zorder)
+            poly = Polygon(vertices, closed = True, fill = True, 
+                # facecolor = (color[0], color[1], color[2]),  
+                # alpha = color[3], 
+                zorder = zorder)
             self.ax.add_patch(poly)
  
     def vis_hz(self, hzonotopes: list, colors = [(0.835, 0.909, 0.831, 0.5)], zorder = None, show_edges = False):
@@ -167,8 +170,10 @@ class ZonoVisualizer:
         '''
         assert all([hz.dim == 2 for hz in hzonotopes]), f'Hybrid Zonotope(s) must be 2D (i.e., hz.dim = 2)'
 
+        from tqdm import tqdm
+
         i = 0
-        for hz in hzonotopes:
+        for hz in tqdm(hzonotopes):
             cz = [] # List that will hold all the constrained zonotopes
 
             b_combs = np.array(list(itertools.product([-1, 1], repeat = hz.nb)))    # Step 1: Enumerate all possible binary combinations
