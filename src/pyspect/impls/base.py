@@ -20,19 +20,25 @@ class ImplClientMeta(type):
 
         return super().__new__(mcs, name, bases, namespace)                
 
+class ImplClient(metaclass=ImplClientMeta):
+
+    @classmethod
     def missing_ops(cls, impl: Impl) -> list[str]:
         return [
             field
             for field in cls.__require__
             if not hasattr(impl, field)
         ]
-
+    
+    @classmethod
     def is_supported(cls, impl: Impl) -> bool:
         return not cls.missing_ops(impl)
 
-class ImplClient(metaclass=ImplClientMeta):
-
-    def add_requirements(cls, funcnames):
-        _require = set(cls.__require__)
+    def add_requirements(self, funcnames):
+        _require = set(self.__require__)
         _require = _require.union(funcnames)
-        cls.__require__ = tuple(_require)
+        self.__require__ = tuple(_require)
+
+    def inherit_requirements(self, *others):
+        for other in others:
+            self.add_requirements(other.__require__)

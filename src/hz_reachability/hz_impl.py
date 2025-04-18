@@ -2,7 +2,6 @@
 import numpy as np
 # Generic TLT imports
 from pyspect import *
-from pyspect.primitives.ltl import *
 from pyspect.impls.axes import AxesImpl
 # Hybrid Zonotope imports
 from hz_reachability.auxiliary_operations import ZonoOperations
@@ -787,7 +786,7 @@ class TVHZImpl(HZImpl):
             return super().intersect(hz1, hz2)
         if not isinstance(hz1, list): hz1 = [hz1] * self.N
         if not isinstance(hz2, list): hz2 = [hz2] * self.N
-        assert len(hz1) == len(hz2) == self.N, 'Mismatching time length'
+        # assert len(hz1) == len(hz2) == self.N, 'Mismatching time length'
         return [super().intersect(_hz1, _hz2) for _hz1, _hz2 in zip(hz1, hz2)]
 
     def union(self, hz1: TVHZ, hz2: TVHZ) -> TVHZ:
@@ -795,7 +794,7 @@ class TVHZImpl(HZImpl):
             return super().union(hz1, hz2)
         if not isinstance(hz1, list): hz1 = [hz1] * self.N
         if not isinstance(hz2, list): hz2 = [hz2] * self.N
-        assert len(hz1) == len(hz2) == self.N, 'Mismatching time length'
+        # assert len(hz1) == len(hz2) == self.N, 'Mismatching time length'
         return [super().union(_hz1, _hz2) for _hz1, _hz2 in zip(hz1, hz2)]
 
     def reach(self, target: TVHZ, constr: TVHZ) -> TVHZ:
@@ -880,6 +879,21 @@ class TVHZImpl(HZImpl):
 
             pred = super().intersect(pred, goal[i])
             out.append(pred)
+
+        return out[::-1]
+
+    def pre(self, goal: TVHZ, constr: TVHZ) -> TVHZ:
+
+        out = goal[::-1] if isinstance(goal, list) else [goal]
+
+        _X = self.state_space
+        _U = self.input_space
+        _T = out[-1]
+        _A = self.dynamics.A
+        _B = self.dynamics.B
+
+        pred = self.one_step_brs_hz_v2(_X, _U, _T, _A, _B)
+        out.append(pred)
 
         return out[::-1]
 

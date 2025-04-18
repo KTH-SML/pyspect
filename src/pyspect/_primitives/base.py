@@ -14,13 +14,6 @@ UnOp = Tuple[str, 'Expr']
 Term = Tuple[str] | str
 Expr = Union[BiOp, UnOp, Term]
 
-def canonicalize(expr: Expr) -> Expr:
-    if isinstance(expr, str): return (expr,)
-    assert isinstance(expr, tuple), 'Invalid expression'
-    assert 1 <= len(expr) <= 3, 'Invalid expression'
-    head, *tail = expr
-    return (head, *map(canonicalize, tail))
-
 class PrimitiveSetMeta(ABCMeta, type):
 
     # Cannot be set. Indicates if the fragment is a single primitive operator
