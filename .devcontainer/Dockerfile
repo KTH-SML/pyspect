@@ -18,13 +18,14 @@ RUN yum install -y \
     jq
 
 # Get latest LLVM 15 release
+# Get latest LLVM 15 release
 RUN mkdir /tmp/llvm-project && \
-    curl -s https://api.github.com/repos/llvm/llvm-project/releases | \
+    curl -s "https://api.github.com/repos/llvm/llvm-project/releases?per_page=100" | \
         jq -r 'sort_by(.published_at) | map(select(.tag_name | startswith("llvmorg-15"))) | last' > /tmp/llvm-project/release.json && \
     jq -r '.tarball_url' /tmp/llvm-project/release.json > /tmp/llvm-project/url && \
     jq -r '.tag_name' /tmp/llvm-project/release.json > /tmp/llvm-project/tag && \
     mkdir $LLVM_DIR && \
-    curl -sL "$(cat /tmp/llvm-project/url)" | tar -xz --strip=1 -C $LLVM_DIR
+    curl -fLs "$(cat /tmp/llvm-project/url)" | tar -xz --strip=1 -C $LLVM_DIR
 
 WORKDIR $LLVM_DIR/build
 RUN env PATH="$PYTHON_DIR/bin:$PATH" \
@@ -218,3 +219,13 @@ RUN apt-get update && \
     pip install -U pip attrs && \
     pip install /opt/wheelhouse/*.whl && \
     rm -r /var/lib/apt/lists/* /opt/wheelhouse
+
+RUN pip install ipywidgets plotly matplotlib numpy
+
+RUN MLIR_PATH=$(python3 -c "import mlirlib; print(*mlirlib.__path__)") && \
+    cat <<EOF >> /home/vscode/.profile
+        
+if [ -d "$MLIR_PATH/bin" ] ; then
+    PATH="$MLIR_PATH/bin:\$PATH"
+fi
+EOF

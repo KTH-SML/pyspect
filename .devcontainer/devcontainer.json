@@ -1,11 +1,11 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/miniconda
 {
-	// "name": "Ubuntu",
-	// "build": {
-	// 	"context": "..",
-	// 	"dockerfile": "Dockerfile"
-	// }
+	"name": "Ubuntu",
+	"build": {
+		"context": "..",
+		"dockerfile": "Dockerfile"
+	}
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
