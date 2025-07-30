@@ -75,14 +75,18 @@ class hz_reachability:
         pass
     
     def complement(self, Z):
-        raise NotImplementedError("Need to implement complement.")
+        """
+        Computes the set difference between the current zonotopic bounds and another zonotopic set.
+        i.e., returns Z_bounds \ Z
+        """
+        return zono.set_diff(self.Z_bounds, Z, settings=self.SOLVER_SETTINGS)
     
     def intersect(self, Z1, Z2):
         """
         Computes the intersection of two zonotopic sets.
         Z1, Z2: zonotopic sets to intersect
         """
-        return zono.intersect(Z1, Z2)
+        return zono.intersection(Z1, Z2)
 
     def union(self, Z1, Z2):
         """
