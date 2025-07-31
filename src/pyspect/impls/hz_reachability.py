@@ -8,19 +8,19 @@ class hz_reachability:
     TIME_STEP = 0.02
     SOLVER_SETTINGS = zono.OptSettings() # default settings
 
-    def __init__(self, dynamics, min_bounds: np.array, max_bounds: np.array, time_horizon: float, time_step=...):
+    def __init__(self, dynamics, state_set: zono.HybZono, input_set: zono.HybZono, time_horizon: float, time_step=...):
+
+        self.dynamics = dynamics
 
         if time_step is Ellipsis: time_step = self.TIME_STEP
         self._dt = time_step
+        self.N = int(np.ceil(time_horizon / self._dt))
 
-        Dynamics = dynamics.pop('cls')
-        if Dynamics is not None:
-            self.reach_dynamics = Dynamics(**dynamics).with_mode('reach')
-            self.avoid_dynamics = Dynamics(**dynamics).with_mode('avoid')
-
-        # state bounds, number of dimensions
-        self.Z_bounds = zono.interval_2_zono(min_bounds, max_bounds)
-        self.ndim = self.Z_bounds.get_n()
+        # state and input sets
+        self.S = state_set
+        self.U = input_set
+        self.nx = self.S.get_n()
+        self.nu = self.U.get_n()
 
     ## Auxiliary Methods ##
     @staticmethod
@@ -31,7 +31,6 @@ class hz_reachability:
         outer_approx: if True, approximates the set with an outer zonotope, only used for Ball sets.
         n_sides_approx: number of sides for the outer approximation of a Ball set.
         """
-
         if isinstance(S, hj.sets.Box):
             # Box to Zono
             return zono.interval_2_zono(S.lo, S.hi)
@@ -50,14 +49,14 @@ class hz_reachability:
         offset: array of offsets for the halfspaces
         axes: generalized intersection axes, if None, uses all axes
         """
-        axes = axes or list(range(self.ndim))
+        axes = axes or list(range(self.nx))
         axes = [self.axis(i) for i in axes]
 
         assert len(axes) == len(normal) == len(offset)
 
         # generalized intersection matrix
         n_rows = len(axes)
-        n_cols = self.Z_bounds.get_n()
+        n_cols = self.S.get_n()
         trip_rows = []
         trip_cols = []
         trip_values = []
@@ -67,41 +66,87 @@ class hz_reachability:
             trip_values.append(1)
         R = sparse.csc_matrix((trip_values, (trip_rows, trip_cols)), shape=(n_rows, n_cols))
 
-        return zono.halfspace_intersection(self.Z_bounds, sparse.csc_matrix(normal), offset, R)
+        return zono.halfspace_intersection(self.S, sparse.csc_matrix(normal), offset, R)
 
     def empty(self):
         """
         Returns an empty set in the form of a constrained zonotope.
         """
-        G = sparse.csc_matrix(np.ones((self.ndim, 1)))  # column of ones
-        c = np.zeros(self.ndim)
+        G = sparse.csc_matrix(np.ones((self.nx, 1)))  # column of ones
+        c = np.zeros(self.nx)
         A = sparse.csc_matrix([[1]]) # infeasible constraint
         b = np.array([2]) # infeasible constraint
         return zono.ConZono(G, c, A, b)
     
-    def complement(self, Z):
+    def complement(self, Z: zono.HybZono):
         """
         Computes the set difference between the current zonotopic bounds and another zonotopic set.
-        i.e., returns Z_bounds \ Z
+        i.e., returns S \ Z
         """
-        return zono.set_diff(self.Z_bounds, Z, settings=self.SOLVER_SETTINGS)
+        return zono.set_diff(self.S, Z, settings=self.SOLVER_SETTINGS)
     
-    def intersect(self, Z1, Z2):
+    def intersect(self, Z1: zono.HybZono, Z2: zono.HybZono):
         """
         Computes the intersection of two zonotopic sets.
         Z1, Z2: zonotopic sets to intersect
         """
         return zono.intersection(Z1, Z2)
 
-    def union(self, Z1, Z2):
+    def union(self, Z1: zono.HybZono, Z2: zono.HybZono):
         """
         Computes the union of two zonotopic sets.
         Z1, Z2: zonotopic sets to union
         """
         return zono.union_of_many([Z1, Z2]) 
-    
-    def reachF(self, target, constraints=None):
-        pass # TO DO
 
-    def reach(self, target, constraints=None):
-        pass # TO DO
+    def reachF(self, target: zono.HybZono, constraints: zono.HybZono = None):
+        """
+        Computes N-step forward reachable set from target set
+        States are confined to the constraint set, which defaults to the zonotopic bounds.
+        """
+        if constraints is None:
+            constraints = self.S
+        
+        # init reachable set
+        Z = target
+
+        # get linear system matrices
+        A = sparse.csc_matrix(self.dynamics.A)
+        B = sparse.csc_matrix(self.dynamics.B)
+        ABmI = sparse.hstack((A, B, -sparse.eye(self.nx)))
+
+        # loop through and compute reachable set
+        for _ in range(self.N):
+            Z = zono.cartesian_product(zono.cartesian_product(Z, self.U), constraints)
+            Z = zono.intersection(Z, zono.Point(np.zeros(self.nx)), ABmI)
+            Z = zono.project_onto_dims(Z, [i for i in range(self.nx, self.nx+self.nu+self.nx)])
+
+        # return N-step forwards reachable set
+        return Z
+
+    def reach(self, target: zono.HybZono, constraints: zono.HybZono = None):
+        """
+        Computes N-step backward reachable set from target set
+        States are confined to the constraint set, which defaults to the zonotopic bounds.
+        """
+        if constraints is None:
+            constraints = self.S
+        
+        # init reachable set
+        Z = target
+
+        # get linear system matrices
+        A = self.dynamics.A
+        B = self.dynamics.B
+        Ainv = sparse.csc_matrix(np.linalg.inv(A))
+        mAinvB = -Ainv * sparse.csc_matrix(B)
+        Ainv_mAinvBmI = sparse.hstack((Ainv, mAinvB, -sparse.eye(self.nx)))
+
+        # loop through and compute reachable set
+        for _ in range(self.N):
+            Z = zono.cartesian_product(zono.cartesian_product(Z, self.U), constraints)
+            Z = zono.intersection(Z, zono.Point(np.zeros(self.nx)), Ainv_mAinvBmI)
+            Z = zono.project_onto_dims(Z, [i for i in range(self.nx, self.nx+self.nu+self.nx)])
+
+        # return N-step backwards reachable set
+        return Z
