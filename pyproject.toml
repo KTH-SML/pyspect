@@ -17,6 +17,13 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
 ]
+dependencies = [
+  'zonoopt @ {root:uri}/extern/ZonoOpt-dev-internal'
+]
+
+[tool.hatch.metadata]
+# need this for local dependency to work
+allow-direct-references = true
 
 [project.urls]
 # Homepage = "https://github.com/pypa/sampleproject"

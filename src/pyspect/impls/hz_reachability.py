@@ -18,10 +18,9 @@ class hz_reachability:
             self.reach_dynamics = Dynamics(**dynamics).with_mode('reach')
             self.avoid_dynamics = Dynamics(**dynamics).with_mode('avoid')
 
-        # state bounds
+        # state bounds, number of dimensions
         self.Z_bounds = zono.interval_2_zono(min_bounds, max_bounds)
-        
-        self.ndim = 2 # where to grab this?
+        self.ndim = self.Z_bounds.get_n()
 
     ## Auxiliary Methods ##
     @staticmethod
@@ -71,8 +70,14 @@ class hz_reachability:
         return zono.halfspace_intersection(self.Z_bounds, sparse.csc_matrix(normal), offset, R)
 
     def empty(self):
-        # TO DO: return empty set of appropriate dimension
-        pass
+        """
+        Returns an empty set in the form of a constrained zonotope.
+        """
+        G = sparse.csc_matrix(np.ones((self.ndim, 1)))  # column of ones
+        c = np.zeros(self.ndim)
+        A = sparse.csc_matrix([[1]]) # infeasible constraint
+        b = np.array([2]) # infeasible constraint
+        return zono.ConZono(G, c, A, b)
     
     def complement(self, Z):
         """
