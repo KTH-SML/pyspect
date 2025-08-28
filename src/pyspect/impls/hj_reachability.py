@@ -141,7 +141,7 @@ class TVHJImpl(AxesImpl):
     TIME_STEP = 0.02
     SOLVER_SETTINGS = hj.SolverSettings.with_accuracy("low")
 
-    def __init__(self, dynamics, axis_names, min_bounds, max_bounds, grid_shape, time_horizon, time_step=...):
+    def __init__(self, dynamics, axis_names, min_bounds, max_bounds, grid_shape, time_horizon, time_step=..., _stack=True):
         super().__init__((         't', *axis_names), 
                          [           0, *min_bounds],
                          [time_horizon, *max_bounds])
@@ -160,6 +160,8 @@ class TVHJImpl(AxesImpl):
 
         self.shape = (len(self.timeline), *self.grid.shape)
         self._shape_inv = (1, *self.grid.shape) # Used for constants
+
+        self._stack = _stack # EXPERIMENTAL: Whether to stack time dimension in outputs. Don't turn off unless you know what you're doing.
 
         Dynamics = dynamics.pop('cls')
         if Dynamics is not None:
@@ -216,7 +218,8 @@ class TVHJImpl(AxesImpl):
 
         assert len(axes) == len(normal) == len(offset)
         
-        data = np.zeros(self.shape if 0 in axes else self._shape_inv)
+        data = np.zeros(self.shape[i] if i in axes else 1
+                        for i in range(self.ndim))
         for i, k, m in zip(axes, normal, offset):
             # Doesn't contribute
             if k == 0: continue
@@ -252,7 +255,8 @@ class TVHJImpl(AxesImpl):
                       self.grid,
                       self.timeline,
                       target,
-                      constraints)
+                      constraints,
+                      stack=self._stack)
         return np.asarray(vf)
 
     def reach(self, target, constraints=None):
@@ -265,7 +269,8 @@ class TVHJImpl(AxesImpl):
                       self.grid,
                       -self.timeline,
                       target,
-                      constraints)
+                      constraints,
+                      stack=self._stack)
         return np.flip(np.asarray(vf), axis=0)
     
     def avoid(self, target, constraints=None):
@@ -278,7 +283,8 @@ class TVHJImpl(AxesImpl):
                       self.grid,
                       -self.timeline,
                       target,
-                      constraints)
+                      constraints,
+                      stack=self._stack)
         return np.flip(np.asarray(vf), axis=0)
 
     def rci(self, target):

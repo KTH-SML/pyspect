@@ -214,7 +214,7 @@ def solve(solver_settings, dynamics, grid, times, target, constraint=None, progr
     else:
         return jax.lax.fori_loop(0, len(times) - 1, 
                                  lambda i, carry: f(carry, i)[0], 
-                                 (0, vf))[1]
+                                 (0, vf))[1][jnp.newaxis]
 
 ### NumPy thing ###
 
