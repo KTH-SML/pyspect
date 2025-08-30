@@ -33,6 +33,10 @@ def setdefaults(d: dict, *args, **kwds) -> None:
     for key, val in defaults.items():
         d.setdefault(key, val)
 
+def collect_prefix(d: dict, prefix: str):
+    return {key.removeprefix(prefix): d.pop(key) 
+            for key in list(d) if key.startswith(prefix)}
+
 def layout_theme(theme):
     layout = dict(margin=dict(l=60, r=20, t=40, b=60))
     axis = dict(linewidth=2)
@@ -136,6 +140,14 @@ def plot3D_image(source, *, fig: BaseFigure, **kwargs) -> BaseFigure:
                 z=0.98*min_bounds[K]*np.ones_like(source),
                 showscale=False)
 
+    fig.update_layout(
+        scene=dict(
+            camera=collect_prefix(kwargs, 'camera_'),
+            **collect_prefix(kwargs, 'scene_'),    
+        ),
+        **collect_prefix(kwargs, 'layout_'),
+    )
+
     return fig.add_trace(go.Surface(
         surfacecolor=source,
         colorscale='gray',
@@ -157,6 +169,10 @@ def plot2D_bitmap(im, *, fig: BaseFigure, **kwargs) -> BaseFigure:
     if transpose:
         im = np.transpose(im)
 
+    fig.update_layout(
+        **collect_prefix(kwargs, 'layout_'),
+    )
+
     return fig.add_trace(go.Heatmap(z=im, **kwargs))
 
 @auto_fig
@@ -164,26 +180,38 @@ def plot2D_levelset(vf, *, fig: BaseFigure, axes=(0,1), level=0, **kwargs) -> Ba
     assert len(axes) == 2
     I, J = axes
     
-    min_bounds = kwargs.pop('min_bounds')
-    max_bounds = kwargs.pop('max_bounds')
-    assert len(min_bounds) == 2
-    assert len(max_bounds) == 2
+    if 'mesh' in kwargs:
+        mesh = kwargs.pop('mesh')
+        assert len(mesh) == 2
+        
+        X = mesh[I]
+        Y = mesh[J]
+
+    else:
+        min_bounds = kwargs.pop('min_bounds')
+        max_bounds = kwargs.pop('max_bounds')
+        assert len(min_bounds) == 2
+        assert len(max_bounds) == 2
+
+        X, Y = np.meshgrid(np.linspace(min_bounds[I], max_bounds[I], vf.shape[I]), 
+                           np.linspace(min_bounds[J], max_bounds[J], vf.shape[J]),
+                           indexing='ij')
 
     setdefaults(kwargs,
-                x=np.linspace(min_bounds[I], max_bounds[I], vf.shape[I]),
-                y=np.linspace(min_bounds[J], max_bounds[J], vf.shape[J]),
+                x=X.flatten(), y=Y.flatten(),
                 xtitle="x [m]", ytitle="y [m]")
 
     xtitle = kwargs.pop('xtitle')
     ytitle = kwargs.pop('ytitle')
 
     fig.update_layout(
-        xaxis=dict(range=[min_bounds[0], max_bounds[0]], title=xtitle),
-        yaxis=dict(range=[min_bounds[1], max_bounds[1]], title=ytitle),
+        xaxis=dict(range=[min_bounds[I], max_bounds[I]], title=xtitle),
+        yaxis=dict(range=[min_bounds[J], max_bounds[J]], title=ytitle),
+        **collect_prefix(kwargs, 'layout_'),
     )
 
-    im = vf.transpose(*axes) <= level
-    return plot2D_bitmap(im, fig=fig, **kwargs)
+    im = vf.transpose(*axes).flatten() <= level
+    return plot2D_bitmap(im, fig=fig, transpose=False, **kwargs)
 
 @auto_fig
 def plot3D_valuefun(vf, *, fig: BaseFigure, axes=(0, 1), **kwargs) -> BaseFigure:
@@ -201,12 +229,11 @@ def plot3D_valuefun(vf, *, fig: BaseFigure, axes=(0, 1), **kwargs) -> BaseFigure
                        indexing='ij')
 
     setdefaults(kwargs,
-                eye=EYE_ML_NE,
+                camera_eye=EYE_ML_NE,
                 showscale=False,
                 x=X, y=Y,
                 xtitle='x [m]', ytitle='y [m]', ztitle='Value')
 
-    eye     = kwargs.pop('eye')
     xtitle  = kwargs.pop('xtitle')
     ytitle  = kwargs.pop('ytitle')
     ztitle  = kwargs.pop('ztitle')
@@ -216,9 +243,11 @@ def plot3D_valuefun(vf, *, fig: BaseFigure, axes=(0, 1), **kwargs) -> BaseFigure
             xaxis_title=xtitle,
             yaxis_title=ytitle,
             zaxis_title=ztitle,
-            aspectmode='cube'
+            aspectmode='cube',
+            camera=collect_prefix(kwargs, 'camera_'),
+            **collect_prefix(kwargs, 'scene_'),
         ),
-        scene_camera=dict(eye=eye)
+        **collect_prefix(kwargs, 'layout_'),
     )
 
     return fig.add_trace(go.Surface(
@@ -252,13 +281,12 @@ def plot3D_levelset(vf, *, fig: BaseFigure, axes=(1,2,0), level=0, **kwargs) -> 
                               indexing='ij')
 
     setdefaults(kwargs,
-                eye=EYE_ML_NE,
+                camera_eye=EYE_ML_NE,
                 colorscale='Greens', showscale=False,
                 x=X.flatten(), y=Y.flatten(), z=Z.flatten(),
                 xtitle='x [m]', ytitle='y [m]', ztitle='t [s]',
                 caps=dict(x_show=False, y_show=False, z_show=False))
     
-    eye     = kwargs.pop('eye')
     xtitle  = kwargs.pop('xtitle')
     ytitle  = kwargs.pop('ytitle')
     ztitle  = kwargs.pop('ztitle')
@@ -268,9 +296,11 @@ def plot3D_levelset(vf, *, fig: BaseFigure, axes=(1,2,0), level=0, **kwargs) -> 
             xaxis_title=xtitle,
             yaxis_title=ytitle,
             zaxis_title=ztitle,
-            aspectmode='cube'
+            aspectmode='cube',
+            camera=collect_prefix(kwargs, 'camera_'),
+            **collect_prefix(kwargs, 'scene_'),
         ),
-        scene_camera=dict(eye=eye)
+        **collect_prefix(kwargs, 'layout_'),
     )
 
     return fig.add_trace(go.Isosurface(
@@ -314,6 +344,7 @@ def film_levelsets(*frames, fig: BaseFigure, plot_func=plot3D_levelset, **kwargs
                                          "mode": "immediate",
                                          "transition": {"duration": 0}}])
             ])]
+        **collect_prefix(kwargs, 'layout_'),
     )
 
     return fig
