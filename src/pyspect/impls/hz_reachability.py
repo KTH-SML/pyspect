@@ -2,13 +2,17 @@ import numpy as np
 from scipy import sparse
 import zonoopt as zono
 import hj_reachability as hj
+from .axes import AxesImpl
 
-class hz_reachability:
+class hz_reachability(AxesImpl):
 
     TIME_STEP = 0.02
     SOLVER_SETTINGS = zono.OptSettings() # default settings
 
-    def __init__(self, dynamics, state_set: zono.HybZono, input_set: zono.HybZono, time_horizon: float, time_step=...):
+    def __init__(self, dynamics, axis_names, min_bounds, max_bounds, input_set: zono.HybZono, time_horizon: float, time_step=...):
+        super().__init__((         't', *axis_names), 
+                         [           0, *min_bounds],
+                         [time_horizon, *max_bounds])
 
         self.dynamics = dynamics
 
@@ -17,7 +21,7 @@ class hz_reachability:
         self.N = int(np.ceil(time_horizon / self._dt))
 
         # state and input sets
-        self.S = state_set
+        self.S = zono.interval_2_zono(zono.Box(min_bounds, max_bounds))
         self.U = input_set
         self.nx = self.S.get_n()
         self.nu = self.U.get_n()
