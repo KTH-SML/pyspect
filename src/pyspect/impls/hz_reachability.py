@@ -33,7 +33,7 @@ class hz_reachability:
         """
         if isinstance(S, hj.sets.Box):
             # Box to Zono
-            return zono.interval_2_zono(S.lo, S.hi)
+            return zono.interval_2_zono(zono.Box(S.lo, S.hi))
         elif isinstance(S, hj.sets.Ball): # need to approximate
             if not S.center.shape[0] == 2:
                 raise NotImplementedError("Ball to Zono not currently implemented for non-2D.")
