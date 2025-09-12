@@ -74,13 +74,9 @@ class hz_reachability(AxesImpl):
 
     def empty(self):
         """
-        Returns an empty set in the form of a constrained zonotope.
+        Returns a EmptySet object.
         """
-        G = sparse.csc_matrix(np.ones((self.nx, 1)))  # column of ones
-        c = np.zeros(self.nx)
-        A = sparse.csc_matrix([[1]]) # infeasible constraint
-        b = np.array([2]) # infeasible constraint
-        return zono.ConZono(G, c, A, b)
+        return zono.EmptySet(self.nx)
     
     def complement(self, Z: zono.HybZono):
         """
