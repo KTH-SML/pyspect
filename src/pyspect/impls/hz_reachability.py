@@ -91,12 +91,7 @@ class hz_reachability(AxesImpl):
         Computes the intersection of two zonotopic sets.
         Z1, Z2: zonotopic sets to intersect
         """
-        try:
-            return zono.intersection(Z1, Z2)
-        except ValueError as e:
-            print(f'Z1 = {Z1}')
-            print(f'Z2 = {Z2}')
-            raise e
+        return zono.intersection(Z1, Z2)
 
     def union(self, Z1: zono.HybZono, Z2: zono.HybZono):
         """
@@ -121,7 +116,7 @@ class hz_reachability(AxesImpl):
 
         Z = zono.cartesian_product(zono.cartesian_product(target, self.U), constraints)
         Z = zono.intersection(Z, zono.Point(np.zeros(self.nx)), ABmI)
-        Z = zono.project_onto_dims(Z, [i for i in range(self.nx, self.nx+self.nu+self.nx)])
+        Z = zono.project_onto_dims(Z, [i for i in range(self.nx+self.nu, self.nx+self.nu+self.nx)])
 
         return Z
 
@@ -145,7 +140,7 @@ class hz_reachability(AxesImpl):
         for _ in range(self.N):
             Z = zono.cartesian_product(zono.cartesian_product(Z, self.U), constraints)
             Z = zono.intersection(Z, zono.Point(np.zeros(self.nx)), ABmI)
-            Z = zono.project_onto_dims(Z, [i for i in range(self.nx, self.nx+self.nu+self.nx)])
+            Z = zono.project_onto_dims(Z, [i for i in range(self.nx+self.nu, self.nx+self.nu+self.nx)])
 
         # return N-step forwards reachable set
         return Z
@@ -172,7 +167,7 @@ class hz_reachability(AxesImpl):
         for _ in range(self.N):
             Z = zono.cartesian_product(zono.cartesian_product(Z, self.U), constraints)
             Z = zono.intersection(Z, zono.Point(np.zeros(self.nx)), Ainv_mAinvBmI)
-            Z = zono.project_onto_dims(Z, [i for i in range(self.nx, self.nx+self.nu+self.nx)])
+            Z = zono.project_onto_dims(Z, [i for i in range(self.nx+self.nu, self.nx+self.nu+self.nx)])
 
         # return N-step backwards reachable set
         return Z

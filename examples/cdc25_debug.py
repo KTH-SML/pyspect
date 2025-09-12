@@ -173,21 +173,10 @@ with timectx(lambda t: f"Realization with HZ took {t:.2f} seconds"):
     out = tree.realize(impl)
 
 print(f"{type(out) = }")
-print(out)
+print(f'n = {out.get_n()}, nGc = {out.get_nGc()}, nGb = {out.get_nGb()}, nC = {out.get_nC()}')
 
-# ## Plot
-
-# if not isinstance(out, list):
-#     vf = np.array([_hz2hj(out, MIN_BOUNDS, MAX_BOUNDS, GRID_SHAPE)] * impl.N)
-# else:
-#     vf = np.array([_hz2hj(_out, MIN_BOUNDS, MAX_BOUNDS, GRID_SHAPE) for _out in tqdm(out)])
-
-# plot3D_levelset(
-#     vf,
-#     min_bounds=[           0, *MIN_BOUNDS],
-#     max_bounds=[TIME_HORIZON, *MAX_BOUNDS],
-#     xtitle='Position (m)',
-#     ytitle='Velocity (m/s)',
-#     colorscale='blues',
-#     eye=EYE_MH_W,
-# )
+# plot
+import matplotlib.pyplot as plt
+zono.plot(out, color='b', edgecolor='b', alpha=0.5)
+plt.axis('equal')
+plt.show()
