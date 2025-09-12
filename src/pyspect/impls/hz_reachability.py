@@ -10,9 +10,10 @@ class hz_reachability(AxesImpl):
     SOLVER_SETTINGS = zono.OptSettings() # default settings
 
     def __init__(self, dynamics, axis_names, min_bounds, max_bounds, input_set: zono.HybZono, time_horizon: float, time_step=...):
-        super().__init__((         't', *axis_names), 
-                         [           0, *min_bounds],
-                         [time_horizon, *max_bounds])
+        # super().__init__((         't', *axis_names), 
+        #                  [           0, *min_bounds],
+        #                  [time_horizon, *max_bounds])
+        super().__init__(axis_names, min_bounds, max_bounds)
 
         self.dynamics = dynamics
 
@@ -81,7 +82,7 @@ class hz_reachability(AxesImpl):
     def complement(self, Z: zono.HybZono):
         """
         Computes the set difference between the current zonotopic bounds and another zonotopic set.
-        i.e., returns S \ Z
+        i.e., returns set_diff(S, Z)
         """
         return zono.set_diff(self.S, Z, settings=self.SOLVER_SETTINGS)
     
@@ -90,7 +91,12 @@ class hz_reachability(AxesImpl):
         Computes the intersection of two zonotopic sets.
         Z1, Z2: zonotopic sets to intersect
         """
-        return zono.intersection(Z1, Z2)
+        try:
+            return zono.intersection(Z1, Z2)
+        except ValueError as e:
+            print(f'Z1 = {Z1}')
+            print(f'Z2 = {Z2}')
+            raise e
 
     def union(self, Z1: zono.HybZono, Z2: zono.HybZono):
         """
@@ -98,6 +104,26 @@ class hz_reachability(AxesImpl):
         Z1, Z2: zonotopic sets to union
         """
         return zono.union_of_many([Z1, Z2]) 
+    
+    def pre(self, target: zono.HybZono, constraints: zono.HybZono = None):
+        """
+        Computes one-step backward reachable set from target set
+        """
+
+        if constraints is None:
+            constraints = self.S
+        
+        # get linear system matrices
+        A = sparse.csc_matrix(self.dynamics.A)
+        B = sparse.csc_matrix(self.dynamics.B)
+
+        ABmI = sparse.hstack((A, B, -sparse.eye(self.nx)))
+
+        Z = zono.cartesian_product(zono.cartesian_product(target, self.U), constraints)
+        Z = zono.intersection(Z, zono.Point(np.zeros(self.nx)), ABmI)
+        Z = zono.project_onto_dims(Z, [i for i in range(self.nx, self.nx+self.nu+self.nx)])
+
+        return Z
 
     def reachF(self, target: zono.HybZono, constraints: zono.HybZono = None):
         """
