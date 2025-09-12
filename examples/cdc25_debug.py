@@ -177,6 +177,8 @@ print(f'n = {out.get_n()}, nGc = {out.get_nGc()}, nGb = {out.get_nGb()}, nC = {o
 
 # plot
 import matplotlib.pyplot as plt
-zono.plot(out, color='b', edgecolor='b', alpha=0.5)
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+zono.plot(out, ax=ax, color='b', edgecolor=None, alpha=0.5)
 plt.axis('equal')
 plt.show()
