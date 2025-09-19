@@ -10,21 +10,19 @@ class hz_reachability(AxesImpl):
     SOLVER_SETTINGS = zono.OptSettings() # default settings
 
     def __init__(self, dynamics, axis_names, min_bounds, max_bounds, input_set: zono.HybZono, time_horizon: float, time_step=...):
-        # init with time dynamics
-        super().__init__((         't', *axis_names), 
-                         [           0, *min_bounds],
-                         [time_horizon, *max_bounds])
+        # super().__init__((         't', *axis_names), 
+        #                  [           0, *min_bounds],
+        #                  [time_horizon, *max_bounds])
+        super().__init__(axis_names, min_bounds, max_bounds)
+
+        self.dynamics = dynamics
 
         if time_step is Ellipsis: time_step = self.TIME_STEP
         self._dt = time_step
         self.N = int(np.ceil(time_horizon / self._dt))
 
-        self.A = sparse.block_diag([sparse.csc_matrix([[1.]]), sparse.csc_matrix(dynamics.A)])
-        self.B = sparse.vstack([sparse.csc_matrix(np.zeros((1, dynamics.B.shape[1]))), sparse.csc_matrix(dynamics.B)])
-        self.C = np.hstack([np.array([self._dt]), np.zeros(dynamics.A.shape[0])])
-
         # state and input sets
-        self.S = zono.interval_2_zono(zono.Box(np.hstack([0, min_bounds]), np.hstack([time_horizon, max_bounds])))
+        self.S = zono.interval_2_zono(zono.Box(min_bounds, max_bounds))
         self.U = input_set
         self.nx = self.S.get_n()
         self.nu = self.U.get_n()
@@ -109,11 +107,15 @@ class hz_reachability(AxesImpl):
 
         if constraints is None:
             constraints = self.S
+        
+        # get linear system matrices
+        A = sparse.csc_matrix(self.dynamics.A)
+        B = sparse.csc_matrix(self.dynamics.B)
 
-        ABmI = sparse.hstack((self.A, self.B, -sparse.eye(self.nx)))
+        ABmI = sparse.hstack((A, B, -sparse.eye(self.nx)))
 
         Z = zono.cartesian_product(zono.cartesian_product(target, self.U), constraints)
-        Z = zono.intersection(Z, zono.Point(-self.C), ABmI)
+        Z = zono.intersection(Z, zono.Point(np.zeros(self.nx)), ABmI)
         Z = zono.project_onto_dims(Z, [i for i in range(self.nx+self.nu, self.nx+self.nu+self.nx)])
 
         return Z
@@ -130,12 +132,14 @@ class hz_reachability(AxesImpl):
         Z = target
 
         # get linear system matrices
-        ABmI = sparse.hstack((self.A, self.B, -sparse.eye(self.nx)))
+        A = sparse.csc_matrix(self.dynamics.A)
+        B = sparse.csc_matrix(self.dynamics.B)
+        ABmI = sparse.hstack((A, B, -sparse.eye(self.nx)))
 
         # loop through and compute reachable set
         for _ in range(self.N):
             Z = zono.cartesian_product(zono.cartesian_product(Z, self.U), constraints)
-            Z = zono.intersection(Z, zono.Point(-self.C), ABmI)
+            Z = zono.intersection(Z, zono.Point(np.zeros(self.nx)), ABmI)
             Z = zono.project_onto_dims(Z, [i for i in range(self.nx+self.nu, self.nx+self.nu+self.nx)])
 
         # return N-step forwards reachable set
@@ -153,14 +157,16 @@ class hz_reachability(AxesImpl):
         Z = target
 
         # get linear system matrices
-        Ainv = sparse.csc_matrix(np.linalg.inv(self.A.toarray()))
-        mAinvB = -Ainv * self.B
+        A = self.dynamics.A
+        B = self.dynamics.B
+        Ainv = sparse.csc_matrix(np.linalg.inv(A))
+        mAinvB = -Ainv * sparse.csc_matrix(B)
         Ainv_mAinvBmI = sparse.hstack((Ainv, mAinvB, -sparse.eye(self.nx)))
 
         # loop through and compute reachable set
         for _ in range(self.N):
             Z = zono.cartesian_product(zono.cartesian_product(Z, self.U), constraints)
-            Z = zono.intersection(Z, zono.Point(Ainv*self.C), Ainv_mAinvBmI)
+            Z = zono.intersection(Z, zono.Point(np.zeros(self.nx)), Ainv_mAinvBmI)
             Z = zono.project_onto_dims(Z, [i for i in range(self.nx+self.nu, self.nx+self.nu+self.nx)])
 
         # return N-step backwards reachable set
