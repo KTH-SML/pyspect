@@ -3,6 +3,7 @@ import numpy as np
 # Generic TLT imports
 from pyspect import *
 from pyspect.impls.axes import AxesImpl
+from pyspect.impls.plotly import PlotlyImpl
 # Hybrid Zonotope imports
 from hz_reachability.auxiliary_operations import ZonoOperations
 from hz_reachability.sets import HybridZonotope, ConstrainedZonotope
@@ -16,7 +17,7 @@ References
 [3] - Guaranteed Completion of Complex Tasks via Temporal Logic Trees and Hamilton-Jacobi Reachability, Frank J. Jiang, Kaj M. Arfvidsson, et al.
 """
 
-class HZImpl(AxesImpl):
+class HZImpl(PlotlyImpl[HybridZonotope]):
     """
     Description
     ------------
@@ -38,7 +39,7 @@ class HZImpl(AxesImpl):
         - type: Boolean
         - desc: Decides wether the intermediate steps of the reachability analysis should be returned back to the user or only the final one.
     """
-    def __init__(self, dynamics, space, axis_names, time_horizon = 10, time_step = 0.1, show_intermediate = False):
+    def __init__(self, dynamics, space, axis_specs, time_horizon = 10, time_step = 0.1, show_intermediate = False):
         """
         Description
         ------------
@@ -60,7 +61,7 @@ class HZImpl(AxesImpl):
         self.zono_op = ZonoOperations()
         self.enable_reduce = False
 
-        super().__init__(axis_names, self.min_bounds, self.max_bounds)
+        AxesImpl.__init__(self, axis_specs)
 
     def empty(self):
 
@@ -465,7 +466,7 @@ class HZImpl(AxesImpl):
         """
         raise NotImplementedError()
     
-    def plane_cut(self, normal, offset, axes=None, Z=None):
+    def halfspace(self, normal, offset, axes=None, Z=None):
 
         nz = self.state_space.dim 
         axes = list(axes or range(nz))
@@ -747,28 +748,23 @@ TVHZ = HybridZonotope | list[HybridZonotope]
 
 class TVHZImpl(HZImpl):
 
-    def __init__(self, dynamics, space, axis_names, time_horizon = 10, time_step = 0.1, show_intermediate = False):
-        self.dynamics = dynamics
-        self.min_bounds = space.min_bounds
-        self.max_bounds = space.max_bounds
-        self.state_space = space.state_space
-        self.input_space = dynamics.input_space
-        self.augmented_space = self.augment_space()
-        self.time_horizon = time_horizon
-        self.time_step = time_step
-        self.N = int(self.time_horizon / self.time_step)
-        self.has_disturbance = False
-        self.show_intermediate = show_intermediate
+    def __init__(self, dynamics, space, axis_specs, show_intermediate = False):
         
-        self.zono_op = ZonoOperations()
-        self.enable_reduce = False
+        assert axis_specs[0]['name'] == 't', "The first axis must be 't' representing time"
+        for spec in axis_specs:
+            assert 'name' in spec, "All axes must have a name"
+            assert 'bounds' in spec, "All axes must have defined bounds"
+            if 'step' in spec:
+                assert spec['step'] > 0, f"Axis {spec['name']} must have positive step size"
+                spec['points'] = int(abs(spec['bounds'][1] - spec['bounds'][0]) // spec['step'])
+            if 'points' in spec:
+                assert spec['points'] > 0, f"Axis {spec['name']} must have positive number of points"
+                spec['step'] = float(abs(spec['bounds'][1] - spec['bounds'][0]) / spec['points'])
 
-        AxesImpl.__init__(
-            self,
-            (         't', *axis_names), 
-            [           0, *space.min_bounds],
-            [time_horizon, *space.max_bounds],
-        )
+        super().__init__(dynamics, space, axis_specs,
+                         time_horizon = axis_specs[0]['bounds'][1],
+                         time_step = axis_specs[0]['step'],
+                         show_intermediate = show_intermediate)
 
     def empty(self) -> TVHZ:
         return super().empty()
@@ -897,7 +893,7 @@ class TVHZImpl(HZImpl):
 
         return out[::-1]
 
-    def plane_cut(self, normal, offset, axes=None, **kwds):
+    def halfspace(self, normal, offset, axes=None, **kwds):
         axes = axes or list(range(self.ndim))
         axes = [self.axis(i) for i in axes]
         assert len(axes) == len(normal) == len(offset), 'normal, offset and axes must be equal length'
@@ -912,7 +908,7 @@ class TVHZImpl(HZImpl):
             offset.pop(i)
 
         if 0 not in axes:
-            return super().plane_cut(normal, offset, axes=[i-1 for i in axes], **kwds)
+            return super().halfspace(normal, offset, axes=[i-1 for i in axes], **kwds)
         else:
             assert len(axes) == 1, 'Not Implemented time-cut properly yet'
             i = axes[0]

@@ -171,8 +171,8 @@ def solve(solver_settings, dynamics, grid, times, target, constraints=None, prog
             jax.lax.scan(f, (times[0], initial_values), np.arange(1, len(times)))[1]
         ])
     
-@functools.partial(jax.jit, static_argnames=("dynamics", "progress_bar"))
-def solve(solver_settings, dynamics, grid, times, target, constraint=None, progress_bar=True):
+@functools.partial(jax.jit, static_argnames=("dynamics", "progress_bar", "stack"))
+def solve(solver_settings, dynamics, grid, times, target, constraint=None, progress_bar=True, stack=True):
         
     is_target_invariant = shp.is_invariant(grid, times, target)
     is_constraint_invariant = shp.is_invariant(grid, times, constraint)
@@ -190,10 +190,10 @@ def solve(solver_settings, dynamics, grid, times, target, constraint=None, progr
     
     if constraint is None:
         def f(carry, j):
-            i, vf = carry
-            vf = step(solver_settings, dynamics, grid, times[i], vf, times[j+1])
-            vf = jnp.minimum(vf, target if is_target_invariant else target[j+1])
-            return (j, vf), vf
+            i, _vf = carry
+            _vf = step(solver_settings, dynamics, grid, times[i], _vf, times[j+1])
+            _vf = jnp.minimum(_vf, target if is_target_invariant else target[j+1])
+            return (j, _vf), _vf
     else:
         def f(carry, j):
             i, _vf = carry
@@ -205,11 +205,16 @@ def solve(solver_settings, dynamics, grid, times, target, constraint=None, progr
     if progress_bar:
         decorator = scan_tqdm(len(times)-1)
         f = decorator(f)
-
-    return jnp.concatenate([
-        vf[jnp.newaxis],
-        jax.lax.scan(f, (0, vf), jnp.arange(len(times)-1))[1]
-    ])
+    
+    if stack:
+        return jnp.concatenate([
+            vf[jnp.newaxis],
+            jax.lax.scan(f, (0, vf), jnp.arange(len(times)-1))[1]
+        ])
+    else:
+        return jax.lax.fori_loop(0, len(times) - 1, 
+                                 lambda i, carry: f(carry, i)[0], 
+                                 (0, vf))[1][jnp.newaxis]
 
 ### NumPy thing ###
 
