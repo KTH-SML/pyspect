@@ -10,9 +10,6 @@ class hz_reachability(AxesImpl):
     SOLVER_SETTINGS = zono.OptSettings() # default settings
 
     def __init__(self, dynamics, axis_names, min_bounds, max_bounds, input_set: zono.HybZono, time_horizon: float, time_step=...):
-        # super().__init__((         't', *axis_names), 
-        #                  [           0, *min_bounds],
-        #                  [time_horizon, *max_bounds])
         super().__init__(axis_names, min_bounds, max_bounds)
 
         self.dynamics = dynamics
@@ -59,6 +56,10 @@ class hz_reachability(AxesImpl):
 
         assert len(axes) == len(normal) == len(offset)
 
+        # H * x < = f, x in S
+        H = -sparse.csc_matrix(normal)
+        f = H*np.array(offset)
+
         # generalized intersection matrix
         n_rows = len(axes)
         n_cols = self.S.get_n()
@@ -71,7 +72,7 @@ class hz_reachability(AxesImpl):
             trip_values.append(1)
         R = sparse.csc_matrix((trip_values, (trip_rows, trip_cols)), shape=(n_rows, n_cols))
 
-        return zono.halfspace_intersection(self.S, sparse.csc_matrix(normal), offset, R)
+        return zono.halfspace_intersection(self.S, H, f, R)
 
     def empty(self):
         """

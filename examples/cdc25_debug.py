@@ -92,10 +92,8 @@ from hj_reachability.systems import DoubleIntegrator as HJDoubleIntegrator
 
 from pyspect.plotting.zonotopes import _hz2hj
 
-# from hz_reachability.hz_impl import TVHZImpl
 from hz_reachability.systems.cars import *
 from hz_reachability.systems.integrators import DoubleIntegrator as HZDoubleIntegrator
-# from hz_reachability.spaces import EmptySpace
 import pyspect.impls.hz_reachability as hz
 import zonoopt as zono
 
@@ -150,6 +148,8 @@ def Always_fp(_1: 'TLTLike') -> Tuple[SetBuilder, APPROXDIR]:
     tree = TLT(phi).where(psi=_1)
     return (tree._builder, tree._approx)
 
+### HZ implementation
+
 ## CONSTRUCT TLT
 
 TLT.select(LTLd | Always_fp)
@@ -179,5 +179,4 @@ print(f'n = {out.get_n()}, nGc = {out.get_nGc()}, nGb = {out.get_nGb()}, nC = {o
 import matplotlib.pyplot as plt
 fig, ax = plt.subplots()
 zono.plot(out, ax=ax, color='b', alpha=0.5, t_max=5.0)
-plt.axis('equal')
 plt.show()
