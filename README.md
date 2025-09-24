@@ -60,3 +60,26 @@ Phi = tlt.realize(impl) # The satisfaction set in the backend’s representation
 If you use pyspect in academic work, please cite:
 
 > TBA
+
+
+
+## Core ideas
+
+### I. Logic as a tiny AST
+1. Write formulas (e.g. LTL) as lightweight, typed tuples: 
+   `('AND', a, b)`, `('NOT', a)`, `('UNTIL', phi, psi)`, etc.
+2. Symbols (propositions) are bound later via a mapping `M: AP -> SetBuilder`.
+
+### II. Temporal Logic Trees (TLTs)
+> A **TLT** mirrors formula structure with set/reachability nodes, verifying temporal logic using reachability.
+
+1. `TLT.select(Q)` chooses a set of primitives `Q` matching the temporal logic fragment. **Key:** the primitives operationalize the fragment (how we evaluate).
+2. `TLT(spec).realize(impl)` constructs and executes a reachability program verifying `spec`.
+
+### III. Implementations
+
+...
+
+### IV. Set builders (lazy, backend-agnostic)
+1. **SetBuilder** objects (`B: Impl -> R`) describe sets *implicitly* and are evaluated only when realized by an implementation (“dependency injection”).
+2. pyspect provides common combinators: `Union`, `Inter`, `Compl`, plus constructors like `BoundedSet(…)`. (Backends/Implementations supply the actual set operations.)
