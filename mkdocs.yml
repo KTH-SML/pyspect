@@ -5,6 +5,9 @@
 #
 # To build the documentation:
 # > mkdocs build
+#
+# To serve the documentation locally:
+# > mkdocs serve
 
 site_name: pyspect
 site_url: 'https://kth-sml.github.io/pyspect/'
