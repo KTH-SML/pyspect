@@ -1,4 +1,22 @@
-from typing import ClassVar, Optional, Union, Tuple, Set, Dict, Any
+"""Logic fragments and typed tuple-based formulas.
+
+This module defines:
+- TLExpr: a lightweight AST for temporal/propositional logic as typed tuples
+- Utilities to validate/inspect/transform formulas
+- LogicFragment meta-class to declare connectives and compose language fragments
+
+Design:
+- A proposition is either a string name or a SetBuilder constant.
+- Operator applications are tuples of the form:
+  - (op,)                  for nullary operators
+  - (op, arg)              for unary operators
+  - (op, lhs, rhs)         for binary operators
+- Operators are declared via `declare(name, narg)` which produces a
+  class-like fragment whose `__call__` constructs the tuple form.
+- Fragments can be composed with `|` to create a combined language.
+"""
+from __future__ import annotations
+from typing import ClassVar, Optional
 
 from .set_builder import SetBuilder
 
@@ -6,19 +24,34 @@ __all__ = (
     'get_malformed',
     'get_props',
     'replace_prop',
+    'TLProp', 'TLExpr',
     # Propositional
     'NOT', 'AND', 'OR', 'TRUTHIFY', 'FALSIFY',
+    'MINUS', 'IMPLIES',
     # Temporal Logic
     'NEXT', 'UNTIL', 'EVENTUALLY', 'ALWAYS',
 )
 
-TLProp      = str | SetBuilder
-TLOpNullary = Tuple[str]
-TLOpUnary   = Tuple[str, 'TLExpr']
-TLOpBinary  = Tuple[str, 'TLExpr', 'TLExpr'] 
-TLExpr      = Union[TLProp, TLOpNullary, TLOpUnary, TLOpBinary]
+# Type aliases for the tuple-shaped logic AST
+type TLProp      = str | SetBuilder
+type TLOpNullary = tuple[str]
+type TLOpUnary   = tuple[str, TLExpr]
+type TLOpBinary  = tuple[str, TLExpr, TLExpr]
+type TLExpr      = TLProp | TLOpNullary | TLOpUnary | TLOpBinary
 
 def get_malformed(formula: TLExpr) -> Optional[TLExpr]:
+    """Return the first malformed subexpression, or None if well-formed.
+
+    Well-formedness rules:
+    - Propositions: non-empty str, or any SetBuilder instance
+    - Operator tuples: length 1..3, head must be str, and all arguments recursively valid
+
+    Parameters:
+    - formula: TLExpr to check
+
+    Returns:
+    - None if the expression is well-formed; otherwise the first offending subexpression
+    """
     if isinstance(formula, str): 
         return None if formula else formula # OK unless empty string
     elif isinstance(formula, SetBuilder):
@@ -34,6 +67,18 @@ def get_malformed(formula: TLExpr) -> Optional[TLExpr]:
         return formula # Malformed
 
 def get_props(formula: TLExpr) -> set[str]:
+    """Collect proposition names appearing in a formula.
+
+    - String terminals are treated as proposition names and included.
+    - SetBuilder terminals are constants and contribute no proposition names.
+    - Operator tuples are traversed recursively.
+
+    Parameters:
+    - formula: TLExpr to inspect
+
+    Returns:
+    - Set of unique proposition names found in `formula`
+    """
     if isinstance(formula, str):
         return {formula}
     elif isinstance(formula, SetBuilder):
@@ -47,7 +92,22 @@ def get_props(formula: TLExpr) -> set[str]:
     else:
         raise TypeError(f"Unknown formula type: {type(formula)}")
 
-def replace_prop(formula: TLExpr, prop: str, expr: TLExpr):
+def replace_prop(formula: TLExpr, prop: str, expr: TLExpr) -> TLExpr:
+    """Replace all occurrences of proposition `prop` with `expr`.
+
+    Notes:
+    - This function expects `formula` to be an operator tuple (not a raw str or SetBuilder).
+      It descends recursively and replaces terminals that match `prop`.
+    - For nullary or terminal positions, if the terminal equals `prop`, it is replaced by `expr`.
+
+    Parameters:
+    - formula: operator tuple (TLOpNullary/Unary/Binary)
+    - prop: proposition name to replace
+    - expr: replacement sub-expression
+
+    Returns:
+    - New TLExpr with replacements applied
+    """
     head, *tail = formula
     if tail:
         # formula is an operator expression
@@ -59,12 +119,26 @@ def replace_prop(formula: TLExpr, prop: str, expr: TLExpr):
         return expr if head == prop else formula
 
 class LogicFragment(type):
+    """Metaclass for declaring and composing logic fragments (connectives).
+
+    Instances of classes produced by this metaclass are not meant to be
+    instantiated. Instead, calling the class constructs a tuple-based TLExpr
+    for the associated connective (see __call__).
+
+    Attributes:
+    - __narg__: required arity for the connective (None for a composed fragment)
+    - __connectives__: tuple of connective names included in this fragment
+
+    Composition:
+    - Fragments can be combined with `|` to form a new fragment whose
+      `__connectives__` is the union of the operands.
+    """
 
     __narg__: Optional[int]
     __connectives__: ClassVar[tuple[str, ...]]
 
     def __new__(mcs, name: str, bases: tuple, namespace: dict):
-
+        """Create a new fragment type, merging connectives from base fragments."""
         _narg = namespace.setdefault('__narg__', None)
         _connectives = set(namespace.setdefault('__connectives__', ()))
 
@@ -83,6 +157,16 @@ class LogicFragment(type):
         return f"<language '{cls.__name__}'>"
 
     def __call__(cls, *args) -> TLExpr:
+        """Construct a TLExpr tuple for this connective.
+
+        Constraints:
+        - This only works for a fragment with exactly one connective.
+        - Number of arguments must match the declared arity.
+        - Arguments must themselves be valid TLExpr terminals or tuples.
+
+        Returns:
+        - (op,) | (op, arg) | (op, lhs, rhs), where op == cls.__name__
+        """
         
         # NOTE: This overrides the ability to instantiate objects,
         #       but this is not necessary for the language classes
@@ -102,14 +186,25 @@ class LogicFragment(type):
         return (cls.__name__, *args)
 
     def __or__(cls, *args) -> 'LogicFragment':
+        """Return a fragment that is the union of this fragment and others."""
         # Combine connectives using bitwise OR
         return LogicFragment('UnnamedLanguageFragment', args, {})
 
     def is_complete(cls, prims: set) -> bool:
+        """Check that all connectives in this fragment exist in `prims`."""
         # Check if all connectives are present in the set of primitives
         return all(conn in prims for conn in cls.__connectives__)
 
 def declare(name: str, narg: int) -> LogicFragment:
+    """Declare a new connective fragment with given name and arity.
+
+    Parameters:
+    - name: operator name used as the tuple head in TLExpr
+    - narg: arity (0, 1, or 2)
+
+    Returns:
+    - A LogicFragment-derived class representing the connective
+    """
     return LogicFragment(name, (), {
         '__narg__': narg,
         '__connectives__': (name,),
@@ -132,21 +227,31 @@ MINUS = declare('MINUS', 2)
 
 IMPLIES = declare('IMPLIES', 2)
 
-PROPOSITIONAL = NOT | AND | OR | TRUTHIFY | FALSIFY
+# PROPOSITIONAL = NOT | AND | OR | TRUTHIFY | FALSIFY
 
 ######################################################################
-## Logic Fragment: Temporal Logic
+## Logic Fragment: (Future- and Past-) LTL
 
-UNTIL = declare('UNTIL', 2)
+# NOTE: Future-time operators are default
 
-EVENTUALLY = declare('EVENTUALLY', 1)
+FUNTIL = declare('F-UNTIL', 2)
+PUNTIL = declare('P-UNTIL', 2)
+UNTIL  = FUNTIL
 
-ALWAYS = declare('ALWAYS', 1)
+FEVENTUALLY = declare('F-EVENTUALLY', 1)
+PEVENTUALLY = declare('P-EVENTUALLY', 1)
+EVENTUALLY  = FEVENTUALLY
 
-NEXT = declare('NEXT', 1)
+FALWAYS = declare('F-ALWAYS', 1)
+PALWAYS = declare('P-ALWAYS', 1)
+ALWAYS  = FALWAYS
 
-# Continuous LTL
-LTLc = PROPOSITIONAL | UNTIL | EVENTUALLY | ALWAYS
+FNEXT = declare('F-NEXT', 1)
+PNEXT = declare('P-NEXT', 1)
+NEXT  = FNEXT
 
-# Discrete LTL
-LTLd = LTLc | NEXT
+######################################################################
+## Logic Fragment: CTL* (TODO)
+
+######################################################################
+## Logic Fragment: STL (TODO)

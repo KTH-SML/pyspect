@@ -6,16 +6,10 @@ import plotly.graph_objects as go
 from plotly.basedatatypes import BaseFigure
 from PIL import Image
 
+
 def iterwin(seq, winlen=1):
     slices = [seq[i::winlen] for i in range(winlen)]
     yield from zip(*slices)
-
-def sph_to_cart(r, theta, phi):
-    theta *= np.pi/180
-    phi *= np.pi/180
-    return dict(x=r*np.sin(theta)*np.cos(phi),
-                y=r*np.sin(theta)*np.sin(phi),
-                z=r*np.cos(theta))
 
 def setdefaults(d: dict, *args, **kwds) -> None:
     """Set dictionary defaults."""
@@ -36,6 +30,14 @@ def setdefaults(d: dict, *args, **kwds) -> None:
 def collect_prefix(d: dict, prefix: str):
     return {key.removeprefix(prefix): d.pop(key) 
             for key in list(d) if key.startswith(prefix)}
+
+
+def sph_to_cart(r, theta, phi):
+    theta *= np.pi/180
+    phi *= np.pi/180
+    return dict(x=r*np.sin(theta)*np.cos(phi),
+                y=r*np.sin(theta)*np.sin(phi),
+                z=r*np.cos(theta))
 
 def layout_theme(theme):
     layout = dict(margin=dict(l=60, r=20, t=40, b=60))

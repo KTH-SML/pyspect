@@ -1,8 +1,9 @@
 import itertools
-import hj_reachability.shapes as shp
 from numpy.linalg import matrix_rank
 from scipy.linalg import null_space, svd, pinv
 from scipy.ndimage import distance_transform_edt
+
+import pyspect.plotting.levelset_shapes as shp
 from pyspect.plotting.levelsets import *
 
 def _hz2hj(hz, min_bounds, max_bounds, grid_shape):
