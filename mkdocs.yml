@@ -1,0 +1,67 @@
+# Configuration file for [MkDocs](https://mkdocs.org)
+#
+# This configuration requires the following pip packages to work:
+# - mkdocs
+#
+# To build the documentation:
+# > mkdocs build
+
+site_name: pyspect
+site_url: 'https://kth-sml.github.io/pyspect/'
+site_description: ...
+site_author: 'Kaj Munhoz Arfvidsson <kajarf@kth.se>'
+
+repo_url: https://github.com/KTH-SML/pyspect
+copyright: "2025, Kaj Munhoz Arfvidsson"
+
+theme: 
+  name: shadcn
+  icon: media/icon.svg
+
+nav:
+  - Home: index.md
+  - Get Started: get_started.md
+  - Core Concepts & Reference:
+    - Set Builders: reference/set_builder.md
+    - Logic Fragments: reference/logics.md
+    - Temporal Logic Trees: reference/tlt.md
+    - TLT Primitives: reference/primitives.md
+  - Implementations:
+    - hj_reachability: implementations/hj_reachability.md
+    - zonoOpt: implementations/zonoOpt.md
+
+markdown_extensions:
+  - smarty
+  - def_list
+  - sane_lists
+  - admonition
+  - toc:
+      permalink: True
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+extra_javascript:
+  - mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+watch:
+  - src/pyspect
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: false
+            show_root_heading: true
+            show_root_full_path: false
+          paths:
+            - src/pyspect
+
