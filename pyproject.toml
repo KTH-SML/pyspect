@@ -18,7 +18,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
 ]
 dependencies = [
-  'zonoopt @ {root:uri}/extern/ZonoOpt-dev-internal'
+  'zonoopt @ {root:uri}/extern/ZonoOpt'
 ]
 
 [tool.hatch.metadata]
