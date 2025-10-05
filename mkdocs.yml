@@ -32,6 +32,11 @@ nav:
   - Implementations:
     - hj_reachability: implementations/hj_reachability.md
     - zonoOpt: implementations/zonoOpt.md
+  - Helper Implementations:
+    - Base: implementations/base.md
+    - Axes: implementations/axes.md
+    - Plotly: implementations/plotly.md
+    - Debug: implementations/debug.md
 
 markdown_extensions:
   - smarty
