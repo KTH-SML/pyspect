@@ -1,10 +1,9 @@
 import numpy as np
-from scipy import sparse
 import zonoopt as zono
-import hj_reachability as hj
+from scipy import sparse
 from .axes import AxesImpl
 
-class hz_reachability(AxesImpl):
+class ZonoOptImpl(AxesImpl):
 
     TIME_STEP = 0.02
     SOLVER_SETTINGS = zono.OptSettings() # default settings
@@ -24,27 +23,8 @@ class hz_reachability(AxesImpl):
         self.nx = self.S.get_n()
         self.nu = self.U.get_n()
 
-    ## Auxiliary Methods ##
-    @staticmethod
-    def set_to_zono(S: hj.sets.BoundedSet, outer_approx=False, n_sides_approx=6):
-        """
-        Converts a Hamilton-Jacobi bounded set to a zonotope.
-        S: Hamilton-Jacobi bounded set
-        outer_approx: if True, approximates the set with an outer zonotope, only used for Ball sets.
-        n_sides_approx: number of sides for the outer approximation of a Ball set.
-        """
-        if isinstance(S, hj.sets.Box):
-            # Box to Zono
-            return zono.interval_2_zono(zono.Box(S.lo, S.hi))
-        elif isinstance(S, hj.sets.Ball): # need to approximate
-            if not S.center.shape[0] == 2:
-                raise NotImplementedError("Ball to Zono not currently implemented for non-2D.")
-            else:
-                return zono.make_regular_zono_2D(S.radius, S.center, outer_approx, n_sides_approx)
-
-
     ## pyspect Interfaces ##
-    def plane_cut(self, normal, offset, axes=None):
+    def halfspace(self, normal, offset, axes=None):
         """
         Computes generalized halfspace intersection with bounds over specified axes.
         normal: array of normal vectors
