@@ -1,0 +1,3 @@
+[submodule "extern/ZonoOpt"]
+	path = extern/ZonoOpt
+	url = https://github.com/psu-PAC-Lab/ZonoOpt.git
