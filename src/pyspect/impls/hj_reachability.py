@@ -7,7 +7,6 @@ Requires:
 """
 
 import functools
-from pydoc import text
 
 import jax
 import jax.numpy as jnp
