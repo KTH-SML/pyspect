@@ -344,6 +344,77 @@ class PlotlyImpl[R](AxesImpl):
             **kwds
         ))
     
+    def transform_to_scatter(self, inp: R, axes: Axes2D, **kwds) -> np.ndarray:
+        """Transform input data to scatter points (N x 2 float array).
+        
+        This is a stub implementation. Actual implementation depends on the data type R.
+        
+        Args:
+            inp: Input data to transform.
+            axes: Two axes to project onto.
+            **kwds: Additional keyword arguments for the transformation.
+        
+        Returns:
+            An (N, 2) float numpy array representing the scatter points.
+        """
+        raise NotImplementedError("transform_to_scatter not implemented")
+    
+    def plot_fill(self,
+                  inp: R, *,
+                  axes: Axes2D = (0, 1),
+                  fig: BaseFigure,
+                  **kwds) -> BaseFigure:
+        """Plot a filled 2D area.
+
+        This method visualizes the input data as a filled area using a scatter plot with
+        `fill='toself'`. The area is defined by the points returned by `transform_to_scatter`.
+
+        *Note:* Requires the `transform_to_scatter` method to be implemented.
+
+        Args:
+            inp: Input data to plot.
+            axes: Two axes to project onto.
+            fig: Figure to plot into. If not provided, a new figure is created.
+            **kwds: Additional keyword arguments for the scatter plot.
+
+        Returns:
+            fig: The figure containing the filled area plot.
+        """
+
+        setdefaults(kwds,
+                    fill='toself',
+                    mode='lines',
+                    line=dict(width=2),
+                    fillcolor='LightGreen',
+                    opacity=0.5,
+                    showlegend=False)
+
+        if not len(axes) == 2:
+            raise ValueError("plot_fill expects exactly 2 axes")
+        axes = tuple(self.axis(ax) for ax in axes)
+
+        transf_kw = collect_prefix(kwds, 'transform_', remove=True)
+        P = self.transform_to_scatter(inp, axes=axes, **transf_kw)
+        if P.ndim != 2 or P.shape[1] != 2:
+            raise ValueError("transform_to_scatter must return an (N, 2) array")
+
+        xaxis = dict(zeroline=False, showline=False, showticklabels=True)
+        yaxis = xaxis.copy()
+
+        for i, axis in enumerate((xaxis, yaxis)):
+            title = self.axis_name(axes[i])
+            if unit := self.axis_unit(axes[i]):
+                title += f' [{unit}]'
+            axis.update(title=title)
+
+        fig.update_layout(xaxis=xaxis, yaxis=yaxis)
+
+        return fig.add_trace(go.Scatter(
+            x=P[:, 0],
+            y=P[:, 1],
+            **kwds
+        ))
+    
     def transform_to_surface(self, inp: R, axes: Axes2D, **kwds) -> np.ndarray:
         """Transform input data to a 3D surface (2D float array).
         
