@@ -17,13 +17,6 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3 :: Only",
 ]
-dependencies = [
-  'zonoopt @ {root:uri}/extern/ZonoOpt'
-]
-
-[tool.hatch.metadata]
-# need this for local dependency to work
-allow-direct-references = true
 
 # Version comes from VCS tags (set tags like v0.2.1)
 dynamic = ["version"]
@@ -34,6 +27,7 @@ dependencies = [
 
 [project.optional-dependencies]
 hj_reachability = ["hj_reachability>=0.7,<0.8"]
+zonoopt = ["zonoopt"]
 
 [project.urls]
 Homepage = "https://kth-sml.github.io/pyspect"
