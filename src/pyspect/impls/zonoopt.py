@@ -1,15 +1,20 @@
 import numpy as np
 import zonoopt as zono
 from scipy import sparse
-from .axes import AxesImpl
 
-class ZonoOptImpl(AxesImpl):
+from .axes import *
+from .plotly import *
+
+
+class ZonoOptImpl(PlotlyImpl[zono.HybZono], AxesImpl[zono.HybZono]):
 
     TIME_STEP = 0.02
     SOLVER_SETTINGS = zono.OptSettings() # default settings
 
     def __init__(self, dynamics, axis_names, min_bounds, max_bounds, input_set: zono.HybZono, time_horizon: float, time_step=...):
-        super().__init__(axis_names, min_bounds, max_bounds)
+        
+        # Initialize AxesImpl
+        self._axes_from_lists(axis_names, min_bounds, max_bounds)
 
         self.dynamics = dynamics
 
