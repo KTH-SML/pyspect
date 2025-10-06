@@ -6,15 +6,36 @@ from .axes import *
 from .plotly import *
 
 
+# TODO: Move
+class DoubleIntegrator:
+    
+    dt = 0.05
+
+    def __init__(self, max_accel, dt=dt) -> None:
+        
+        ## Dynamics ##
+
+        self.A = np.array([
+            [1.0,  self.dt],
+            [0.0, 1.0],
+        ])
+        self.B = np.array([
+            [self.dt**2/2],
+            [self.dt     ],
+            # [0],
+            # [1],
+        ]) * max_accel
+
+
 class ZonoOptImpl(PlotlyImpl[zono.HybZono], AxesImpl[zono.HybZono]):
 
     TIME_STEP = 0.02
     SOLVER_SETTINGS = zono.OptSettings() # default settings
 
-    def __init__(self, dynamics, axis_names, min_bounds, max_bounds, input_set: zono.HybZono, time_horizon: float, time_step=...):
+    def __init__(self, dynamics, axes, input_set: zono.HybZono, time_horizon: float, time_step=...):
         
         # Initialize AxesImpl
-        self._axes_from_lists(axis_names, min_bounds, max_bounds)
+        super().__init__(axes)
 
         self.dynamics = dynamics
 
@@ -23,7 +44,7 @@ class ZonoOptImpl(PlotlyImpl[zono.HybZono], AxesImpl[zono.HybZono]):
         self.N = int(np.ceil(time_horizon / self._dt))
 
         # state and input sets
-        self.S = zono.interval_2_zono(zono.Box(min_bounds, max_bounds))
+        self.S = zono.interval_2_zono(zono.Box(self._min_bounds, self._max_bounds))
         self.U = input_set
         self.nx = self.S.get_n()
         self.nu = self.U.get_n()
