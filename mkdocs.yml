@@ -11,8 +11,10 @@
 
 site_name: pyspect
 site_url: 'https://kth-sml.github.io/pyspect/'
-site_description: ...
 site_author: 'Kaj Munhoz Arfvidsson <kajarf@kth.se>'
+site_description:
+  A method-agnostic toolbox that compiles temporal-logic specifications into
+  reachability programs via Temporal Logic Trees (TLTs).
 
 repo_url: https://github.com/KTH-SML/pyspect
 copyright: "2025, Kaj Munhoz Arfvidsson"
@@ -38,28 +40,10 @@ nav:
     - Plotly: implementations/plotly.md
     - Debug: implementations/debug.md
 
-markdown_extensions:
-  - smarty
-  - def_list
-  - sane_lists
-  - admonition
-  - toc:
-      permalink: True
-  - pymdownx.arithmatex:
-      generic: true
-  - pymdownx.superfences:
-      custom_fences:
-        - name: mermaid
-          class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
-
 extra_javascript:
   - mathjax.js
   - https://polyfill.io/v3/polyfill.min.js?features=es6
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
-
-watch:
-  - src/pyspect
 
 plugins:
   - search
@@ -73,3 +57,22 @@ plugins:
           paths:
             - src/pyspect
 
+markdown_extensions:
+  admonition:
+  codehilite:
+  fenced_code:
+  footnotes:
+  extra:
+  pymdownx.blocks.details:
+  pymdownx.tabbed:
+  pymdownx.blocks.tab:
+    combine_header_slug: true
+    separator: ___
+  pymdownx.progressbar:
+  pymdownx.snippets:
+  pymdownx.arithmatex:
+    generic: true
+  shadcn.extensions.echarts.alpha:
+  shadcn.extensions.codexec:
+  shadcn.extensions.iconify:
+  pymdownx.blocks.caption:
