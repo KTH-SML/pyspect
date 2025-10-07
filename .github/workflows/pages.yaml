@@ -32,9 +32,9 @@ jobs:
         with:
           python-version-file: pyproject.toml
 
-      - name: Install project
-        run: uv sync --all-extras --dev
-
+      - name: Install docs dependencies
+        run: uv pip install .[docs]
+  
       - name: Cache MkDocs assets
         uses: actions/cache@v4
         with:
