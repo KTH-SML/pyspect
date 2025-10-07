@@ -22,6 +22,7 @@ copyright: "2025, Kaj Munhoz Arfvidsson"
 theme: 
   name: shadcn
   icon: media/icon.svg
+  favicon: media/icon.svg
 
 nav:
   - Home: index.md
