@@ -32,6 +32,9 @@ jobs:
         with:
           python-version-file: pyproject.toml
 
+      - name: Create virtual environment
+        run: uv venv
+
       - name: Install docs dependencies
         run: uv pip install .[docs]
   
