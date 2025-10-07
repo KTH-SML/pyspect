@@ -26,6 +26,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+docs = [
+  "mkdocs",
+  "mkdocs-shadcn",
+  "mkdocstrings[python]",
+  "pymdown-extensions"
+]
 hj_reachability = ["hj_reachability>=0.7,<0.8"]
 zonoopt = ["zonoopt"]
 
