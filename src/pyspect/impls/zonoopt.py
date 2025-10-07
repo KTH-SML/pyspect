@@ -1,10 +1,12 @@
 import numpy as np
 import zonoopt as zono
 from scipy import sparse
+import warnings
 
 from .axes import *
 from .plotly import *
 
+type Axes = tuple[Axis, ...]
 
 # TODO: Move
 class DoubleIntegrator:
@@ -48,6 +50,23 @@ class ZonoOptImpl(PlotlyImpl[zono.HybZono], AxesImpl[zono.HybZono]):
         self.U = input_set
         self.nx = self.S.get_n()
         self.nu = self.U.get_n()
+
+    def transform_to_scatter(self, inp: zono.HybZono, *, axes: Axes = (0, 1, 2), t_max=60.0, settings=zono.OptSettings()):
+        """Transforms zonotopic set to scatter plot data.
+        inp: zonotopic set to be transformed
+        axes: axes to plot on
+        t_max: maximum time to spend on finding vertices
+        settings: optimization settings
+        """
+
+        if inp.get_n() < 2 or inp.get_n() > 3:
+            raise ValueError("Plot only implemented in 2D or 3D")
+        
+        # hybzono -> get leaves
+        if inp.is_hybzono():
+            raise NotImplementedError('transform_to_scatter not implemented for HybZono')
+
+        return zono.get_vertices(inp, t_max=t_max)
 
     ## pyspect Interfaces ##
     def halfspace(self, normal, offset, axes=None):

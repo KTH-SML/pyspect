@@ -359,6 +359,7 @@ class PlotlyImpl[R](AxesImpl):
         """
         raise NotImplementedError("transform_to_scatter not implemented")
     
+    @with_figure(dim=2)
     def plot_fill(self,
                   inp: R, *,
                   axes: Axes2D = (0, 1),
