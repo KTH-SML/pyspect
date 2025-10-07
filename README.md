@@ -62,6 +62,15 @@ If you use pyspect in academic work, please cite:
 > TBA
 
 
+## Paper Examples
+
+For paper examples, checkout branches:
+
+- [`cdc24`](https://github.com/KTH-SML/pyspect/tree/cdc24/examples): Intersection & Parking
+- [`cdc25`](https://github.com/KTH-SML/pyspect/tree/cdc25/examples): Double Integrator with HJ & HZ
+
+
+<!--
 
 ## Core ideas
 
@@ -83,3 +92,5 @@ If you use pyspect in academic work, please cite:
 ### IV. Set builders (lazy, backend-agnostic)
 1. **SetBuilder** objects (`B: Impl -> R`) describe sets *implicitly* and are evaluated only when realized by an implementation (“dependency injection”).
 2. pyspect provides common combinators: `Union`, `Inter`, `Compl`, plus constructors like `BoundedSet(…)`. (Backends/Implementations supply the actual set operations.)
+
+-->
