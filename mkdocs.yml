@@ -34,7 +34,7 @@ nav:
     - TLT Primitives: reference/primitives.md
   - Implementations:
     - hj_reachability: implementations/hj_reachability.md
-    - zonoOpt: implementations/zonoOpt.md
+    - ZonoOpt: implementations/zonoOpt.md
   - Helper Implementations:
     - Base: implementations/base.md
     - Axes: implementations/axes.md
