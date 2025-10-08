@@ -385,9 +385,8 @@ class PlotlyImpl[R](AxesImpl):
         setdefaults(kwds,
                     fill='toself',
                     mode='lines',
-                    line=dict(width=2),
-                    fillcolor='LightGreen',
-                    opacity=0.5,
+                    line=dict(width=0),
+                    fillcolor='#74c476', # Roughly 50% of Greens
                     showlegend=False)
 
         if not len(axes) == 2:
@@ -399,6 +398,11 @@ class PlotlyImpl[R](AxesImpl):
         if P.ndim != 2 or P.shape[1] != 2:
             raise ValueError("transform_to_scatter must return an (N, 2) array")
 
+        min_bounds = kwds.pop('min_bounds', [self._min_bounds[i] for i in axes])
+        max_bounds = kwds.pop('max_bounds', [self._max_bounds[i] for i in axes])
+        if len(min_bounds) != 2: raise ValueError("plot_fill expects exactly 2 min_bounds")
+        if len(max_bounds) != 2: raise ValueError("plot_fill expects exactly 2 max_bounds")
+
         xaxis = dict(zeroline=False, showline=False, showticklabels=True)
         yaxis = xaxis.copy()
 
@@ -406,7 +410,7 @@ class PlotlyImpl[R](AxesImpl):
             title = self.axis_name(axes[i])
             if unit := self.axis_unit(axes[i]):
                 title += f' [{unit}]'
-            axis.update(title=title)
+            axis.update(range=[min_bounds[i], max_bounds[i]], title=title)
 
         fig.update_layout(xaxis=xaxis, yaxis=yaxis)
 
