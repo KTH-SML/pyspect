@@ -2,34 +2,34 @@
 Plotly-based plotting utilities and an extensible plotting interface for pyspect.
 
 This module provides:
-- update_theme: Configures a Plotly figure with light/dark 2D/3D themes, common font,
-  axis styles, and background colors. The function mutates the provided figure
-  (template, paper/plot background) and supplies a template_layout for consistent
-  styling.
-- with_figure: A decorator that ensures a Plotly figure is available, normalizes
-  keyword arguments, and applies theming and layout updates. Depending on dim:
-  - dim=None: no axis remapping
-  - dim=2: xaxis_* and yaxis_* kwds map to layout_xaxis_* / layout_yaxis_*
-  - dim=3: xaxis_*, yaxis_*, zaxis_* map to layout_scene_*; camera_* maps to
-    layout_scene_camera_*
-  It also collects theme_* and layout_* prefixes to feed update_theme and figure layout.
+    - update_theme: Configures a Plotly figure with light/dark 2D/3D themes, common font,
+      axis styles, and background colors. The function mutates the provided figure
+      (template, paper/plot background) and supplies a template_layout for consistent
+      styling.
+    - with_figure: A decorator that ensures a Plotly figure is available, normalizes
+      keyword arguments, and applies theming and layout updates. Depending on dim:
+        - dim=None: no axis remapping
+        - dim=2: xaxis_* and yaxis_* kwds map to layout_xaxis_* / layout_yaxis_*
+        - dim=3: xaxis_*, yaxis_*, zaxis_* map to layout_scene_*; camera_* maps to
+        layout_scene_camera_*
+      It also collects theme_* and layout_* prefixes to feed update_theme and figure layout.
 
 The core interface is PlotlyImpl[R] (subclass of AxesImpl), which offers:
-- A general dispatcher PlotlyImpl.plot(..., method="name") that calls either
-  self.plot_name or self.name on provided inputs.
-- Three transformation hooks to implement in subclasses:
-  - transform_to_bitmap(inp, axes) -> 2D boolean array
-  - transform_to_surface(inp, axes) -> 2D float array
-  - transform_to_isosurface(inp, axes) -> 3D float array
+    - A general dispatcher PlotlyImpl.plot(..., method="name") that calls either
+      self.plot_name or self.name on provided inputs.
+    - Three transformation hooks to implement in subclasses:
+        - `transform_to_bitmap(inp, axes)`: 2D boolean array
+        - `transform_to_surface(inp, axes)`: 2D float array
+        - `transform_to_isosurface(inp, axes)`: 3D float array
 
 Ready-to-use plotting methods (decorated with with_figure) build meshes over axis
 bounds (min/max) via numpy.meshgrid (indexing='ij'), label axes using axis_name/unit,
 and add corresponding Plotly traces:
-- plot_bitmap: 2D Heatmap of a boolean mask (True mapped to `value` in [zmin, zmax]).
-- plot_contour: 2D contour lines from a 2D scalar field.
-- plot_surface: 3D surface (z from 2D scalar field) with scene aspectmode='cube'.
-- plot_isosurface: 3D isosurface at a given level from a 3D volume; caps hidden and
-  surface_count=1 by default; scene aspectmode='cube'.
+    - `plot_bitmap`: 2D Heatmap of a boolean mask (True mapped to `value` in [zmin, zmax]).
+    - `plot_contour`: 2D contour lines from a 2D scalar field.
+    - `plot_surface`: 3D surface (z from 2D scalar field) with scene aspectmode='cube'.
+    - `plot_isosurface`: 3D isosurface at a given level from a 3D volume; caps hidden and
+      surface_count=1 by default; scene aspectmode='cube'.
 
 The nested PlotlyImpl.PLOT namespace provides spherical-to-cartesian helpers and a
 set of precomputed camera.eye presets (e.g., EYE_HI_NE, EYE_MH_S, EYE_ZENITH, etc.)
@@ -104,7 +104,7 @@ def update_theme(name: Optional[str] = None, *,
 
 def with_figure(f: Optional[Callable] = None, *, dim: Optional[int] = None):
     """Decorator to handle figure creation and theming for plotting methods.
-    Args:
+    Parameters:
         dim: Dimensionality of the plot (2 or 3).
     """
 
@@ -235,8 +235,8 @@ class PlotlyImpl[R](AxesImpl):
     @with_figure
     def plot(self, *args: R | tuple[R, dict], method: str, fig: BaseFigure, **kwds) -> BaseFigure:
         """General plotting interface.
-        
-        Args:
+
+        Parameters:
             *args: TODO.
             method: Plotting method to use. Implementation must provide `{method}` or `plot_{method}`.
             fig: Existing figure to plot into. If not provided, a new figure is created.
@@ -262,7 +262,7 @@ class PlotlyImpl[R](AxesImpl):
         
         This is a stub implementation. Actual implementation depends on the data type R.
         
-        Args:
+        Parameters:
             inp: Input data to transform.
             axes: Two axes to project onto.
             **kwds: Additional keyword arguments for the transformation.
@@ -288,7 +288,7 @@ class PlotlyImpl[R](AxesImpl):
 
         *Note:* Requires the `transform_to_bitmap` method to be implemented.
 
-        Args:
+        Parameters:
             inp: Input data to plot.
             value: Value to represent "True" in the bitmap.
             axes: Two axes to project onto.
@@ -348,8 +348,8 @@ class PlotlyImpl[R](AxesImpl):
         """Transform input data to scatter points (N x 2 float array).
         
         This is a stub implementation. Actual implementation depends on the data type R.
-        
-        Args:
+
+        Parameters:
             inp: Input data to transform.
             axes: Two axes to project onto.
             **kwds: Additional keyword arguments for the transformation.
@@ -372,7 +372,7 @@ class PlotlyImpl[R](AxesImpl):
 
         *Note:* Requires the `transform_to_scatter` method to be implemented.
 
-        Args:
+        Parameters:
             inp: Input data to plot.
             axes: Two axes to project onto.
             fig: Figure to plot into. If not provided, a new figure is created.
@@ -421,7 +421,7 @@ class PlotlyImpl[R](AxesImpl):
         
         This is a stub implementation. Actual implementation depends on the data type R.
         
-        Args:
+        Parameters:
             inp: Input data to transform.
             axes: Two axes to project onto.
             **kwds: Additional keyword arguments for the transformation.
@@ -444,7 +444,7 @@ class PlotlyImpl[R](AxesImpl):
 
         *Note:* Requires the `transform_to_surface` method to be implemented.
 
-        Args:
+        Parameters:
             inp: Input data to plot.
             axes: Two axes to project onto.
             fig: Figure to plot into. If not provided, a new figure is created.
@@ -505,7 +505,7 @@ class PlotlyImpl[R](AxesImpl):
         
         *Note:* Requires the `transform_to_surface` method to be implemented.
         
-        Args:
+        Parameters:
             inp: Input data to plot.
             axes: Two axes to project onto.
             fig: Figure to plot into. If not provided, a new figure is created.
@@ -559,7 +559,7 @@ class PlotlyImpl[R](AxesImpl):
         
         This is a stub implementation. Actual implementation depends on the data type R.
         
-        Args:
+        Parameters:
             inp: Input data to transform.
             axes: Three axes to project onto.
             **kwds: Additional keyword arguments for the transformation.
@@ -584,7 +584,7 @@ class PlotlyImpl[R](AxesImpl):
 
         *Note:* Requires the `transform_to_isosurface` method to be implemented.
 
-        Args:
+        Parameters:
             inp: Input data to plot.
             level: Level at which to extract the isosurface.
             axes: Three axes to project onto.

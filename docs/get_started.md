@@ -7,12 +7,8 @@ Follow these steps to install **pyspect** and run your first spec.
 ```bash
 pip install pyspect
 
-# With Hamilton–Jacobi backend (optional)
+# With optional implementaion
 pip install pyspect[hj_reachability]
-
-# From source
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[hj_reachability]"
 ```
 
 ## 2. Write your first spec

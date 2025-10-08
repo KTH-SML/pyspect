@@ -2,19 +2,19 @@
 
 This module defines a tiny DSL of lazy "set builders" that describe sets and
 set operations without committing to a concrete representation. A SetBuilder
-is realized by an Impl[R] (see pyspect.impls.*), which interprets operations
-(e.g., empty, complement, intersect, halfspace).
+is realized by an `Impl[R]` (see `pyspect.impls.*`), which interprets operations
+(e.g., `empty`, `complement`, `intersect`, `halfspace`).
 
 Key ideas:
-- Builders are composable and track requirements on the target Impl.
-- Builders can carry named free variables (ReferredSet) resolved at realization.
-- AppliedSet defers a call to an Impl method by name until realization.
+    - Builders are composable and track requirements on the target `Impl`.
+    - Builders can carry named free variables (ReferredSet) resolved at realization.
+    - AppliedSet defers a call to an `Impl` method by name until realization.
 """
 from __future__ import annotations
 from typing import Any
 
-from .impls.base import *
-from .impls.axes import *
+from .impls.base import Impl, ImplClient
+from .impls.axes import Axis
 
 __all__ = (
     'SetBuilder',
@@ -38,11 +38,11 @@ class SetBuilder[R](ImplClient[R]):
     """Abstract base for all set builders.
 
     Responsibilities:
-    - Be callable with an implementation Impl[R] to produce a concrete set R.
-    - Track required Impl operations through ImplClient.
-    - Track free variable names (see ReferredSet).
+        - Be callable with an implementation `Impl[R]` to produce a concrete set `R`.
+        - Track required `Impl` operations through `ImplClient`.
+        - Track free variable names (see `ReferredSet`).
 
-    Subclasses should implement __call__, which is called to realize the sets.
+    Subclasses should implement `__call__`, which is called to realize the sets.
     """
 
     free: tuple[str, ...] = ()
@@ -89,10 +89,11 @@ class ReferredSet[R](SetBuilder[R]):
     """Reference a named free variable resolved from the realization mapping.
 
     `ReferredSet('X')(impl, X=some_builder)` realizes to `some_builder(impl, ...)`.
-    This is useful in two ways: (1) We can be lazy when constructing the call tree,
-    i.e. we allow users to define which builder to use at a later stage. (2) This
-    essentially allow variables to exist within the call tree which avoids having
-    to reconstruct an entire tree in some cases.
+    This is useful in two ways:
+        1. We can be lazy when constructing the call tree, i.e. we allow users to
+           define which builder to use at a later stage.
+        2. This essentially allow variables to exist within the call tree which avoids
+           having to reconstruct an entire tree in some cases.
     """
 
     def __init__(self, name: str) -> None:
@@ -104,11 +105,11 @@ class ReferredSet[R](SetBuilder[R]):
         return sb(impl, **m)
 
 class AppliedSet[R](SetBuilder[R]):
-    """Defer a call to Impl.<funcname>(*args) where args are realized builders.
+    """Defer a call to `Impl.<funcname>(*args)` where `args` are realized builders.
 
-    - Accumulates required Impl methods from children and adds `funcname`.
+    - Accumulates required `Impl` methods from children and adds `funcname`.
     - Propagates and de-duplicates children's free variables.
-    - On realization, calls child builders first, then invokes the Impl method.
+    - On realization, calls child builders first, then invokes the `Impl` method.
     - Wraps child exceptions to pinpoint which argument failed.
     """
 
@@ -148,7 +149,7 @@ class EmptySet[R](SetBuilder[R]):
     """Builder for the empty set.
     
     Requires:
-    - `Impl.empty() -> R`
+        - `Impl.empty() -> R`
     """
 
     __require__ = ('empty',)
@@ -164,13 +165,13 @@ class HalfSpaceSet[R](SetBuilder[R]):
     Note: The set is in the direction of the normal.
 
     Parameters:
-    - `normal`: coefficients along each axis
-    - `offset`: offsets along each axis
-    - `axes`: axis indices (or str if using AxesImpl) in the Impl's coordinate system
-    - `kwds`: forwarded to Impl.halfspace
+        normal: coefficients along each axis
+        offset: offsets along each axis
+        axes: axis indices (or str if using `AxesImpl`) in the `Impl`'s coordinate system
+        kwds: forwarded to `Impl.halfspace`
 
     Requires:
-    - `Impl.halfspace(normal, offset, axes, ...) -> R`
+        - `Impl.halfspace(normal, offset, axes, ...) -> R`
     """
 
     __require__ = ('halfspace',)
@@ -179,7 +180,7 @@ class HalfSpaceSet[R](SetBuilder[R]):
         self,
         normal: list[float],
         offset: list[float],
-        axes: list[int],
+        axes: list[Axis],
         **kwds: Any,
     ) -> None:
         assert len(axes) == len(normal) == len(offset)
@@ -191,15 +192,14 @@ class HalfSpaceSet[R](SetBuilder[R]):
     def __call__(self, impl: Impl[R], **m: SetBuilder[R]) -> R:
         return impl.halfspace(normal=self.normal, 
                               offset=self.offset, 
-                              axes=[impl.axis(ax) 
-                                    for ax in self.axes],
+                              axes=[impl.axis(ax) for ax in self.axes],
                               **self.kwds)
 
 class BoundedSet[R](SetBuilder[R]):
     """Axis-aligned box possibly unbounded on one side per axis.
 
-    Bounds mapping: name -> (vmin, vmax). Use Ellipsis to denote an open side
-    (e.g., (0, ...) or (..., 1)). For periodic axes where vmax < vmin, the
+    Bounds mapping: `name -> (vmin, vmax)`. Use Ellipsis to denote an open side
+    (e.g., (0, ...) or (..., 1)). For periodic axes where `vmax < vmin`, the
     range wraps around.
 
     Example:
@@ -209,10 +209,10 @@ class BoundedSet[R](SetBuilder[R]):
     ```
 
     Requires:
-    - `Impl < AxesImpl`
-    - `Impl.complement(inp: R) -> R
-    - `Impl.halfspace(normal, offset, axes, ...) -> R`
-    - `Impl.intersect(inp1: R, inp2: R) -> R`
+        - `Impl < AxesImpl`
+        - `Impl.complement(inp: R) -> R`
+        - `Impl.halfspace(normal, offset, axes, ...) -> R`
+        - `Impl.intersect(inp1: R, inp2: R) -> R`
     """
 
     __require__ = ('complement', 'halfspace', 'intersect')
@@ -252,6 +252,7 @@ class BoundedSet[R](SetBuilder[R]):
                 axis_range = impl.intersect(upper_bound, lower_bound)
             s = impl.intersect(s, axis_range)
         return s
+
 
 ## ## ## ## ## ## ## ## ## ##
 ## User-friendly Operations

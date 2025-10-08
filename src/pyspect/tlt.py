@@ -6,15 +6,15 @@ a small runtime for constructing, combining, and realizing TLTs against a
 concrete implementation Impl[R] (see pyspect.impls.*).
 
 Key ideas:
-- A TLT wraps:
-  - _formula: a TLExpr made of tuples and proposition names
-  - _builder: a SetBuilder[R] describing the set semantics
-  - _approx: an APPROXDIR flag describing the approximation direction
-  - _setmap: a mapping from proposition names to SetBuilder bindings
-- Primitives are registered on the class via
-  TLT.select(...) and used by __new_from_formula__ when building trees.
-- Realization checks requirements (operations and bound props) and then calls
-  the builder with the selected Impl.
+    - A TLT wraps:
+        - _formula: a TLExpr made of tuples and proposition names
+        - _builder: a SetBuilder[R] describing the set semantics
+        - _approx: an APPROXDIR flag describing the approximation direction
+        - _setmap: a mapping from proposition names to SetBuilder bindings
+    - Primitives are registered on the class via
+      TLT.select(...) and used by __new_from_formula__ when building trees.
+    - Realization checks requirements (operations and bound props) and then calls
+      the builder with the selected Impl.
 """
 
 from __future__ import annotations
@@ -40,10 +40,10 @@ class APPROXDIR(Enum):
     """Approximation direction tag for a TLT node.
 
     Values:
-    - INVALID: semantics cannot be guaranteed (construction error)
-    - UNDER: under-approximation (subset of the exact set)
-    - EXACT: exact semantics
-    - OVER: over-approximation (superset of the exact set)
+        - INVALID: semantics cannot be guaranteed (construction error)
+        - UNDER: under-approximation (subset of the exact set)
+        - EXACT: exact semantics
+        - OVER: over-approximation (superset of the exact set)
 
     The enum supports + and * with either another APPROXDIR or an int with the
     conventional meaning used by the primitive combination rules.
@@ -95,8 +95,8 @@ class TLTDebugger:
         """Set debug options.
 
         Supported options (with prefix '__debug_' accepted on wrapper):
-        - print: bool, enable/disable printing
-        - indent: int, indentation level increment per nested step
+            - print: bool, enable/disable printing
+            - indent: int, indentation level increment per nested step
 
         Pass Ellipsis to unset a debug option.
         """
@@ -140,16 +140,16 @@ class TLT[R](ImplClient[R]):
     mapping from free proposition names to bound SetBuilders.
 
     Construction:
-    - TLT.select(primitives) must be called to choose available operators.
-    - TLT(arg, **where) dispatches based on the type of `arg`:
-        str          -> proposition
-        SetBuilder   -> constant set, assigned a unique proposition name
-        tuple(TLExpr)-> formula; recursively constructs children via primitives
-        TLT          -> existing tree, optionally updated with new bindings
+        - TLT.select(primitives) must be called to choose available operators.
+        - TLT(arg, **where) dispatches based on the type of `arg`:
+            str          -> proposition
+            SetBuilder   -> constant set, assigned a unique proposition name
+            tuple(TLExpr)-> formula; recursively constructs children via primitives
+            TLT          -> existing tree, optionally updated with new bindings
 
     Realization:
-    - Call .realize(impl) to obtain an R from an implementation.
-    - .assert_realizable() checks missing props/ops and approximation validity.
+        - Call .realize(impl) to obtain an R from an implementation.
+        - .assert_realizable() checks missing props/ops and approximation validity.
     """
 
     __primitives__ = idict({}) # Null set of primitives
@@ -268,9 +268,9 @@ class TLT[R](ImplClient[R]):
         """Realize this TLT into a concrete set R using `impl`.
 
         Raises if:
-        - some proposition is unbound
-        - required Impl operations are missing
-        - approximation is INVALID
+            - some proposition is unbound
+            - required Impl operations are missing
+            - approximation is INVALID
 
         memoize=True is reserved for a future optimization where realized sets
         may be cached on the node.
@@ -304,8 +304,8 @@ class TLT[R](ImplClient[R]):
         """Yield sub-formulas in post-order; optionally only terminals.
 
         Parameters:
-        - formula: root to traverse (defaults to self._formula)
-        - only_terminals: if True, yield only terminal sub-formulas
+            - formula: root to traverse (defaults to self._formula)
+            - only_terminals: if True, yield only terminal sub-formulas
         """
         only_terminals = kwds.get('only_terminals', False)
         if formula is None:

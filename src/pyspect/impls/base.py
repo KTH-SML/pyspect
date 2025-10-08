@@ -2,9 +2,9 @@
 Base interfaces and metaclasses for implementation plug-ins.
 
 This module defines:
-- Impl: Marker base for concrete implementation backends.
-- ImplClientMeta: Metaclass that aggregates and propagates required operation names.
-- ImplClient: Mixin for objects using implementations to declare/query required operations.
+    - Impl: Marker base for concrete implementation backends.
+    - ImplClientMeta: Metaclass that aggregates and propagates required operation names.
+    - ImplClient: Mixin for objects using implementations to declare/query required operations.
 """
 
 from __future__ import annotations
@@ -52,9 +52,9 @@ class ImplClient[R](metaclass=ImplClientMeta):
     Clients refer to objects that use an implementation backend. ImplClient
     ensures to list the names of operations they need the implementation to
     provide via the class attribute __require__. This mixin offers methods to:
-    - report which operations are missing on a given Impl
-    - test if an implementation satisfies all requirements
-    - extend or inherit requirement sets dynamically
+        - report which operations are missing on a given Impl
+        - test if an implementation satisfies all requirements
+        - extend or inherit requirement sets dynamically
     """
 
     @classmethod

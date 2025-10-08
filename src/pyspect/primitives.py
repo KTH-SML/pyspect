@@ -6,16 +6,16 @@ This module defines:
 - Different sets of primitive TLTs for propositional and temporal operators
 
 Concepts:
-- A primitive is specified by a TLExpr (operator head and argument names).
-  Decorating a factory function with @primitive(("OP", "x", "y")) binds the function
-  to that operator and returns a single-element set of a primitive TLT. Union of
-  such sets forms the underlying grammar/logic fragment.
-- A decorated factory should return (SetBuilder[R], APPROXDIR) which specify how 
-  to realize the set semantics and the approximation direction the primitive contributes.
-  The decorator constructs a TLT by:
-  - Substituting child formulas into the operator head
-  - Composing the children's set maps
-  - Propagating requirements/constraints
+    - A primitive is specified by a TLExpr (operator head and argument names).
+      Decorating a factory function with @primitive(("OP", "x", "y")) binds the function
+      to that operator and returns a single-element set of a primitive TLT. Union of
+      such sets forms the underlying grammar/logic fragment.
+    - A decorated factory should return (SetBuilder[R], APPROXDIR) which specify how 
+      to realize the set semantics and the approximation direction the primitive contributes.
+      The decorator constructs a TLT by:
+        - Substituting child formulas into the operator head
+        - Composing the children's set maps
+        - Propagating requirements/constraints
 """
 
 from __future__ import annotations
@@ -23,9 +23,9 @@ from __future__ import annotations
 from functools import wraps
 from typing import Callable
 
-from .set_builder import *
 from .logics import *
-from .tlt import *
+from .set_builder import *
+from .tlt import APPROXDIR, TLT, TLTLike
 
 from .utils.idict import idict
 

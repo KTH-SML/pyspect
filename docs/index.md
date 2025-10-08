@@ -16,11 +16,30 @@ computation so your resulting satisfaction set remains **sound**.
 ## Quick Peek
 
 ```python
-from pyspect.logics import *
-from pyspect.tlt import TLT, ContLTL
+T = BoundedSet(x=(-50,  +50))
+TASK = ALWAYS(T)
 
 TLT.select(ContLTL)
-phi = UNTIL(AND(NOT('D'), 'corridor'), 'goal')
+objective = TLT(TASK, where={'goal': GOAL})
+
+# vvv Implementation-specific vvv
+
+from pyspect.impls.hj_reachability import TVHJImpl
+from pyspect.systems.hj_reachability import *
+
+impl = TVHJImpl(
+    dict(cls=Bicycle4D,
+         wheelbase=2.7,
+         min_accel=-MAX_ACCEL,
+         max_accel=+MAX_ACCEL,
+         min_steer=-MAX_STEER,
+         max_steer=+MAX_STEER), 
+    AXES,
+)
+
+out = objective.realize(impl)
+
+impl.plot(out, axes=('x', 'y', 't')).show()
 ```
 
 > For installation and full examples → **[Get Started](get_started.md)**

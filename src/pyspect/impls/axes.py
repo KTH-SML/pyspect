@@ -18,35 +18,35 @@ class AxesImpl[R](Impl[R]):
     expose axis-aware interactions (selection, projection, formatting).
     
     Construction (new):
-        AxesImpl([
-            dict(name=   'x', bounds=[xmin, xmax], unit='m'),
-            dict(name='*phi', bounds=[0, 2*pi],    unit='rad'),
-            dict(name=   'y', bounds=[-5, 5]),  # unit optional
-        ])
+    ```python
+    AxesImpl([
+        dict(name=   'x', bounds=[xmin, xmax], unit='m'),
+        dict(name='*phi', bounds=[0, 2*pi],    unit='rad'),
+        dict(name=   'y', bounds=[-5, 5]),  # unit optional
+    ])
+    ```
 
-    Also accepted (shorthand):
-        AxesImpl(['x', 'y', 'z'])  # all (-inf,+inf), no units
+    Also accepted (shorthand): `AxesImpl(['x', 'y', 'z'])  # all (-inf,+inf), no units`
 
     Conventions:
-        * Leading '*' in name => periodic axis (name stored without '*').
-        * bounds omitted or Ellipsis => (-inf, +inf)
-        * unit omitted => ''
-        * Each axis spec must be a dict with at minimum a 'name' key (unless list[str] form used).
+        - Leading '*' in name => periodic axis (name stored without '*').
+        - bounds omitted or Ellipsis => (-inf, +inf)
+        - unit omitted => ''
+        - Each axis spec must be a dict with at minimum a 'name' key (unless list[str] form used).
 
     Key properties / methods:
-        ndim                    -> number of axes
-        axis(ax)                -> resolve axis identifier (int index or name) to int
-        axis_name(i)            -> canonical name at index i
-        axis_bounds(ax)         -> (min, max) tuple for the resolved axis
-        axis_is_periodic(ax)    -> True if marked periodic (via leading '*')
-        project_onto(inp, axes) -> subclasses implement projection onto one
-                                   or multiple axes.
+        - `ndim`: number of axes
+        - `axis(ax)`: resolve axis identifier (int index or name) to int
+        - `axis_name(i)`: canonical name at index i
+        - `axis_bounds(ax)`: (min, max) tuple for the resolved axis
+        - `axis_is_periodic(ax)`: True if marked periodic (via leading '*')
+        - `project_onto(inp, axes)`: subclasses implement projection onto one or multiple axes.
     """
 
     def __init__(self, specs: list[dict] | list[str]):
         """Construct AxesImpl.
 
-        Args:
+        Parameters:
             axes: Either a list of axis spec dicts (preferred) or list of axis name strings.
                   Dict form keys: name (required), bounds (optional), unit (optional), periodic (optional bool).
                   Periodicity may also be encoded by leading '*' in the name.
@@ -169,7 +169,7 @@ class AxesImpl[R](Impl[R]):
         The `axes` argument may be a single axis identifier or a tuple of them.
         Additional keyword arguments may be accepted by subclasses.
         
-        Args:
+        Parameters:
             inp (R): The input set to project.
             axes (Axis | tuple[Axis, ...]): The axis or axes to project onto.
             **kwds: Additional keyword arguments for subclass-specific behavior.
