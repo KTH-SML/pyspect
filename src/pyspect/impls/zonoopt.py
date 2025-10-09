@@ -135,13 +135,15 @@ class ZonoOptImpl(PlotlyImpl[zono.HybZono], AxesImpl[zono.HybZono]):
             constraints = self.S
         
         # get linear system matrices
-        A = sparse.csc_matrix(self.dynamics.A)
-        B = sparse.csc_matrix(self.dynamics.B)
+        A = self.dynamics.A
+        B = self.dynamics.B
+        Ainv = sparse.csc_matrix(np.linalg.inv(A))
+        mAinvB = -Ainv * sparse.csc_matrix(B)
+        Ainv_mAinvBmI = sparse.hstack((Ainv, mAinvB, -sparse.eye(self.nx)))
 
-        ABmI = sparse.hstack((A, B, -sparse.eye(self.nx)))
-
-        Z = zono.cartesian_product(zono.cartesian_product(target, self.U), constraints)
-        Z = zono.intersection(Z, zono.Point(np.zeros(self.nx)), ABmI)
+        Z = target
+        Z = zono.cartesian_product(zono.cartesian_product(Z, self.U), constraints)
+        Z = zono.intersection(Z, zono.Point(np.zeros(self.nx)), Ainv_mAinvBmI)
         Z = zono.project_onto_dims(Z, [i for i in range(self.nx+self.nu, self.nx+self.nu+self.nx)])
 
         return Z
