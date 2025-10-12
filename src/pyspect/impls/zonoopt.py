@@ -16,7 +16,7 @@ class DoubleIntegrator:
     def __init__(self, max_accel, dt=dt) -> None:
         
         ## Dynamics ##
-
+        self.dt = dt
         self.A = np.array([
             [1.0,  self.dt],
             [0.0, 1.0],
@@ -26,7 +26,7 @@ class DoubleIntegrator:
             [self.dt     ],
             # [0],
             # [1],
-        ]) * max_accel
+        ])
 
 
 class ZonoOptImpl(PlotlyImpl[zono.HybZono], AxesImpl[zono.HybZono]):
