@@ -49,7 +49,7 @@ import plotly.graph_objects as go
 from plotly.basedatatypes import BaseFigure
 
 from .axes import Axis, AxesImpl
-from ..utils import *
+from ...utils import *
 
 __all__ = [
     'PlotlyImpl',

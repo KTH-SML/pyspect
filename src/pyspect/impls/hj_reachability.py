@@ -18,8 +18,8 @@ from hj_reachability import utils
 from hj_reachability.artificial_dissipation import global_lax_friedrichs
 from hj_reachability.finite_differences import upwind_first
 
-from .axes import *
-from .plotly import *
+from .dev.axes import *
+from .dev.plotly import *
 
 __all__ = [
     'TVHJImpl',

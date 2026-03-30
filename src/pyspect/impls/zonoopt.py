@@ -3,8 +3,8 @@ import zonoopt as zono
 from scipy import sparse
 import warnings
 
-from .axes import *
-from .plotly import *
+from .dev.axes import *
+from .dev.plotly import *
 
 type Axes = tuple[Axis, ...]
 
