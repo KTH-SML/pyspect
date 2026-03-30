@@ -552,9 +552,9 @@ class PlotlyImpl[R](AxesImpl):
                                      zaxis_title='Value'))
 
         return fig.add_trace(go.Surface(
-            x=X.flatten(),
-            y=Y.flatten(),
-            z=Z.flatten(),
+            x=X,
+            y=Y,
+            z=Z,
             **kwds
         ))
     
@@ -644,3 +644,164 @@ class PlotlyImpl[R](AxesImpl):
             value=V.flatten(),
             **kwds
         ))
+
+    @with_figure
+    def animate(self,
+                frames: list[Any],
+                fig: BaseFigure,
+                **kwds) -> BaseFigure:
+        """Create a slider-based Plotly animation by reusing ``plot`` methods.
+
+        Parameters:
+            frames: List of frame inputs. Each frame can be either:
+                - a single plot input ``R``
+                - a tuple of plot inputs accepted by ``plot``
+                - a single ``(R, dict)`` pair for per-input kwargs
+            method: Plotting method passed to ``plot``.
+            fig: Figure to animate into. If not provided, a new figure is created.
+            **kwds: Plot kwargs plus optional ``animate_*`` options.
+
+        Animate options:
+            animate_names: Optional list of frame labels.
+            animate_prefix: Slider current value prefix (default: "Frame: ").
+            animate_frame_duration: Frame duration in ms (default: 500).
+            animate_transition_duration: Transition duration in ms (default: 300).
+            animate_redraw: Whether to redraw each frame (default: True).
+            animate_easing: Transition easing (default: "quad-in-out").
+
+        Returns:
+            fig: The figure containing initial traces, frames, and controls.
+        """
+
+        if not callable(frames) and len(frames) == 0:
+            raise ValueError("animate expects at least one frame")
+
+        anim_kw = collect_prefix(kwds, 'animate_', remove=True)
+        names = anim_kw.pop('names', None)
+        setdefaults(anim_kw,
+                    prefix='Frame: ',
+                    frame_duration=500,
+                    transition_duration=300,
+                    redraw=True,
+                    easing='quad-in-out')
+
+        def normalize_frame(frame: Any) -> tuple[Any, ...]:
+            if isinstance(frame, tuple):
+                # Keep (R, dict) as one plot argument.
+                if len(frame) == 2 and isinstance(frame[1], dict):
+                    return (frame,)
+                return frame
+            if isinstance(frame, list):
+                # Support list-based frame specifications used in notebooks:
+                # - [inp, {..}] for one plot with per-input kwargs
+                # - [(inp1, kw1), (inp2, kw2), ...] for multi-trace frames
+                if len(frame) == 2 and isinstance(frame[1], dict):
+                    return (tuple(frame),)
+                return tuple(frame)
+            return (frame,)
+
+        first_frame = True
+
+        def register_frame(frame_name: str, frame_fig: BaseFigure):
+            nonlocal first_frame
+
+            if first_frame:
+                # Seed initial figure state from the first frame so animated figures
+                # render immediately (especially important for 3D scene layout).
+                fig.update_layout(**frame_fig.layout.to_plotly_json())
+                if len(fig.data) == 0:
+                    fig.add_traces(frame_fig.data)
+                first_frame = False
+
+            fig.frames += (go.Frame(name=frame_name, data=frame_fig.data),)
+
+        slider_steps = []
+        if callable(frames):
+            for frame_name, frame_fig in frames(fig, **kwds):
+                register_frame(frame_name, frame_fig)
+                slider_steps.append(dict(
+                    args=[[frame_name],
+                        dict(frame=dict(duration=anim_kw['frame_duration'],
+                                        redraw=anim_kw['redraw']),
+                            mode='immediate',
+                            transition=dict(duration=anim_kw['transition_duration'],
+                                            easing=anim_kw['easing']))],
+                    label=frame_name,
+                    method='animate',
+                ))
+        else:
+            if names is not None and len(names) != len(frames):
+                raise ValueError("animate_names must match number of frames")
+
+            frame_names = [str(i) for i in range(len(frames))]
+            if names is not None:
+                frame_names = [str(name) for name in names]
+
+            for frame_name, frame_data in zip(frame_names, frames):
+                frame_fig = go.Figure()
+                self.plot(*normalize_frame(frame_data), fig=frame_fig, **kwds)
+                register_frame(frame_name, frame_fig)
+
+                slider_steps.append(dict(
+                    args=[[frame_name],
+                        dict(frame=dict(duration=anim_kw['frame_duration'],
+                                        redraw=anim_kw['redraw']),
+                            mode='immediate',
+                            transition=dict(duration=anim_kw['transition_duration'],
+                                            easing=anim_kw['easing']))],
+                    label=frame_name,
+                    method='animate',
+                ))
+
+        if len(slider_steps) == 0:
+            raise ValueError("animate expects at least one frame")
+
+        fig.update_layout(
+            hovermode='closest',
+            updatemenus=[dict(
+                type='buttons',
+                direction='left',
+                showactive=False,
+                x=0.1,
+                xanchor='right',
+                y=0,
+                yanchor='top',
+                pad=dict(r=10, t=87),
+                buttons=[
+                    dict(label='Play',
+                         method='animate',
+                         args=[None,
+                               dict(frame=dict(duration=anim_kw['frame_duration'],
+                                               redraw=anim_kw['redraw']),
+                                    fromcurrent=True,
+                                    transition=dict(duration=anim_kw['transition_duration'],
+                                                    easing=anim_kw['easing']))]),
+                    dict(label='Pause',
+                         method='animate',
+                         args=[[None],
+                               dict(frame=dict(duration=0, redraw=False),
+                                    mode='immediate',
+                                    transition=dict(duration=0))]),
+                ],
+            )],
+            sliders=[dict(
+                active=0,
+                yanchor='top',
+                xanchor='left',
+                currentvalue=dict(
+                    font=dict(size=20),
+                    prefix=anim_kw['prefix'],
+                    visible=True,
+                    xanchor='right',
+                ),
+                transition=dict(duration=anim_kw['transition_duration'],
+                                easing=anim_kw['easing']),
+                pad=dict(b=10, t=50),
+                len=0.9,
+                x=0.1,
+                y=0,
+                steps=slider_steps,
+            )],
+        )
+
+        return fig
