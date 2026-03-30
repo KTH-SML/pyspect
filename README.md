@@ -19,7 +19,6 @@ pyspect lets you write specifications once, then realize them against interchang
 ### Installation
 
 ```bash
-
 pip install pyspect
 
 # Example to install with implementation-specific dependencies (Optional)
@@ -35,7 +34,7 @@ pip install -e ".[hj_reachability]"
 ```python
 from pyspect.logics import *
 from pyspect.tlt import TLT, ContLTL
-from pyspect.impls.hj_reachability import HJImpl
+from pyspect.impls.hj_reachability import TVHJImpl
 
 # 1) Pick primitives/fragment
 TLT.select(ContLTL) # Continuous-time LTL
@@ -51,16 +50,26 @@ tlt = TLT(phi, where={
 })
 
 # 4) Realize on a backend
-impl = HJImpl(...)      # Each implementation can have their own settings
+impl = TVHJImpl(...)    # Each implementation can have their own settings
 Phi = tlt.realize(impl) # The satisfaction set in the backend’s representation
 ```
 
 ## Cite
 
 If you use pyspect in academic work, please cite:
-
-> TBA
-
+```
+@inproceedings{11311974,
+	title = {pyspect: An Extensible Toolbox for Automatic Construction of Temporal Logic Trees via Reachability Analysis},
+	issn = {2576-2370},
+	url = {https://ieeexplore.ieee.org/abstract/document/11311974},
+	doi = {10.1109/CDC57313.2025.11311974},
+	shorttitle = {pyspect},
+	pages = {6911--6918},
+	booktitle = {2025 {IEEE} 64th Conference on Decision and Control ({CDC})},
+	author = {Arfvidsson, Kaj Munhoz and Hadjiloizou, Loizos and Jiang, Frank J. and Johansson, Karl H. and Mårtensson, Jonas},
+	date = {2025-12},
+}
+```
 
 ## Paper Examples
 
