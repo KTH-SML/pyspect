@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')   # publish only on tag events
     environment:
-      name: pypi
+      name: pypi release
       url: https://pypi.org/p/pyspect
     permissions:
       id-token: write  # for PyPI Trusted Publishing (OIDC)
