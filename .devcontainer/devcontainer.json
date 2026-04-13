@@ -1,11 +1,15 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/miniconda
 {
-	"name": "Ubuntu",
-	"build": {
-		"context": "..",
-		"dockerfile": "Dockerfile"
-	}
+    // Old container for odp
+    // "name": "Ubuntu",
+	// "build": {
+	// 	"context": "..",
+	// 	"dockerfile": "Dockerfile"
+	// }
+    
+    "image": "mcr.microsoft.com/devcontainers/python:3.12",
+    "postCreateCommand": "pip install -e ."
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},

@@ -6,7 +6,7 @@ that concrete implementations can use any set representation (even plain text),
 and it doubles as a lightweight pretty-printer for debugging and tests.
 """
 
-from .axes import AxesImpl
+from .dev.axes import AxesImpl
 
 class StrImpl(AxesImpl[str]):
     """AxesImpl that encodes all operations as formatted strings.

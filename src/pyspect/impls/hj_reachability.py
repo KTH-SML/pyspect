@@ -8,13 +8,18 @@ Requires:
 
 import functools
 
+import numpy as np
+
 import jax
 import jax.numpy as jnp
 from jax_tqdm import scan_tqdm
 import hj_reachability as hj
+from hj_reachability import utils
+from hj_reachability.artificial_dissipation import global_lax_friedrichs
+from hj_reachability.finite_differences import upwind_first
 
-from .axes import *
-from .plotly import *
+from .dev.axes import *
+from .dev.plotly import *
 
 __all__ = [
     'TVHJImpl',
@@ -23,16 +28,35 @@ __all__ = [
 
 type LevelSet = jnp.ndarray
 
-
-# Time-Varying Hamilton-Jacobi Reachability
-# -----------------------------------------
+# Hamilton-Jacobi Reachability With Time-Varying Targets and Constraints
+# ----------------------------------------------------------------------
 
 class TVHJImpl(PlotlyImpl[LevelSet], AxesImpl[LevelSet]):
 
-    SOLVER_SETTINGS = hj.SolverSettings.with_accuracy("low")
+    upwind_scheme: callable
+    time_integrator: callable
+    artificial_dissipation_scheme: callable
+    cfl_number = 0.75
 
-    def __init__(self, dynamics, axis_specs, _stack=True):
+    def __init__(self, dynamics, axis_specs, accuracy="low", _stack=True):
+
+        if accuracy == "low":
+            self.upwind_scheme = upwind_first.first_order
+            self.time_integrator = self.first_order_total_variation_diminishing_runge_kutta
+        elif accuracy == "medium":
+            self.upwind_scheme = upwind_first.ENO2
+            self.time_integrator = self.second_order_total_variation_diminishing_runge_kutta
+        elif accuracy == "high":
+            self.upwind_scheme = upwind_first.WENO3
+            self.time_integrator = self.third_order_total_variation_diminishing_runge_kutta
+        elif accuracy == "very_high":
+            self.upwind_scheme = upwind_first.WENO5
+            self.time_integrator = self.third_order_total_variation_diminishing_runge_kutta
+        else:
+            raise ValueError(f"Unsupported accuracy level: {accuracy}")
         
+        self.artificial_dissipation_scheme = global_lax_friedrichs
+
         # Add time axis
         super().__init__(axis_specs)
         assert axis_specs[0]['name'] == 't', "First axis must be time ('t')"
@@ -63,10 +87,64 @@ class TVHJImpl(PlotlyImpl[LevelSet], AxesImpl[LevelSet]):
         if Dynamics is not None:
             self.reach_dynamics = Dynamics(**dynamics).with_mode('reach')
             self.avoid_dynamics = Dynamics(**dynamics).with_mode('avoid')
-   
     
+    def lax_friedrichs_numerical_hamiltonian(self, hamiltonian, state, time, value, 
+                                             left_grad_value, right_grad_value,
+                                             gamma, dissipation_coefficients):
+        hamiltonian_value = hamiltonian(state, time, value, (left_grad_value + right_grad_value) / 2)
+        dissipation_value = dissipation_coefficients @ (right_grad_value - left_grad_value) / 2 
+        return hamiltonian_value + gamma * value - dissipation_value
+
+    @functools.partial(jax.jit, static_argnames=("self", "dynamics"))
+    def euler_step(self, dynamics, grid, gamma, time, values, time_step=None, max_time_step=None):
+        time_direction = jnp.sign(max_time_step) if time_step is None else jnp.sign(time_step)
+        signed_hamiltonian = lambda *args, **kwargs: time_direction * dynamics.hamiltonian(*args, **kwargs)
+        left_grad_values, right_grad_values = grid.upwind_grad_values(self.upwind_scheme, values)
+        dissipation_coefficients = self.artificial_dissipation_scheme(dynamics.partial_max_magnitudes,
+                                                                      grid.states, time, values,
+                                                                      left_grad_values, right_grad_values)
+        dvalues_dt = -time_direction * utils.multivmap(
+            lambda state, value, left_grad_value, right_grad_value, dissipation_coefficients: (
+                self.lax_friedrichs_numerical_hamiltonian(signed_hamiltonian, state, time, value, 
+                                                          left_grad_value, right_grad_value,
+                                                          gamma, dissipation_coefficients)
+            ),
+            np.arange(grid.ndim),
+        )(grid.states, values, left_grad_values, right_grad_values, dissipation_coefficients)
+        if time_step is None:
+            time_step_bound = 1 / jnp.max(jnp.sum(dissipation_coefficients / jnp.array(grid.spacings), -1))
+            time_step = time_direction * jnp.minimum(self.cfl_number * time_step_bound, jnp.abs(max_time_step))
+        # TODO: Think carefully about whether `self.value_postprocessor` should be applied here instead.
+        return time + time_step, values + time_step * dvalues_dt
+
+    def first_order_total_variation_diminishing_runge_kutta(self, dynamics, grid, gamma, time, values, target_time):
+        time_1, values_1 = self.euler_step(dynamics, grid, gamma, time, values, max_time_step=target_time - time)
+        return time_1, values_1
+
+    def second_order_total_variation_diminishing_runge_kutta(self, dynamics, grid, gamma, time, values, target_time):
+        time_1, values_1 = self.euler_step(dynamics, grid, gamma, time, values, max_time_step=target_time - time)
+        time_step = time_1 - time
+        _, values_2 = self.euler_step(dynamics, grid, gamma, time_1, values_1, time_step)
+        return time_1, (values + values_2) / 2
+
+    def third_order_total_variation_diminishing_runge_kutta(self, dynamics, grid, gamma, time, values, target_time):
+        time_1, values_1 = self.euler_step(dynamics, grid, gamma, time, values, max_time_step=target_time - time)
+        time_step = time_1 - time
+        _, values_2 = self.euler_step(dynamics, grid, gamma, time_1, values_1, time_step)
+        time_0_5, values_0_5 = time + time_step / 2, (3 / 4) * values + (1 / 4) * values_2
+        _, values_1_5 = self.euler_step(dynamics, grid, gamma, time_0_5, values_0_5, time_step)
+        return time_1, (1 / 3) * values + (2 / 3) * values_1_5
+
+    @functools.partial(jax.jit, static_argnames=("self", "dynamics"))
+    def step(self, dynamics, grid, gamma, time, values, target_time):
+        def sub_step(time_values):
+            t, v = self.time_integrator(dynamics, grid, gamma, *time_values, target_time)
+            return t, v
+        return jax.lax.while_loop(lambda time_values: jnp.abs(target_time - time_values[0]) > 0,
+                                  sub_step, (time, values))[1]
+
     @functools.partial(jax.jit, static_argnames=("self", "dynamics", "progress_bar", "stack"))
-    def solve(self, solver_settings, dynamics, grid, times, target, constraint=None, progress_bar=True, stack=True):
+    def solve(self, dynamics, grid, times, target, constraint=None, gamma=0.0, progress_bar=True, stack=True):
             
         is_target_invariant = self.is_invariant(target)
         is_constraint_invariant = self.is_invariant(constraint)
@@ -81,13 +159,13 @@ class TVHJImpl(PlotlyImpl[LevelSet], AxesImpl[LevelSet]):
         if constraint is None:
             def f(carry, j):
                 i, _vf = carry
-                _vf = hj.step(solver_settings, dynamics, grid, times[i], _vf, times[j+1])
+                _vf = self.step(dynamics, grid, gamma, times[i], _vf, times[j+1])
                 _vf = jnp.minimum(_vf, target if is_target_invariant else target[j+1])
                 return (j, _vf), _vf
         else:
             def f(carry, j):
                 i, _vf = carry
-                _vf = hj.step(solver_settings, dynamics, grid, times[i], _vf, times[j+1])
+                _vf = self.step(dynamics, grid, gamma, times[i], _vf, times[j+1])
                 _vf = jnp.minimum(_vf, target if is_target_invariant else target[j+1])
                 _vf = jnp.maximum(_vf, constraint if is_constraint_invariant else constraint[j+1])
                 return (j, _vf), _vf
@@ -279,8 +357,7 @@ class TVHJImpl(PlotlyImpl[LevelSet], AxesImpl[LevelSet]):
         return jnp.minimum(vf1, vf2)
     
     def reachF(self, target, constraints=None):
-        vf = self.solve(self.SOLVER_SETTINGS,
-                        self.avoid_dynamics,
+        vf = self.solve(self.avoid_dynamics,
                         self.grid,
                         self.timeline,
                         target,
@@ -293,8 +370,7 @@ class TVHJImpl(PlotlyImpl[LevelSet], AxesImpl[LevelSet]):
             target = jnp.flip(target, axis=0)
         if not self.is_invariant(constraints):
             constraints = jnp.flip(constraints, axis=0)
-        vf = self.solve(self.SOLVER_SETTINGS,
-                        self.reach_dynamics,
+        vf = self.solve(self.reach_dynamics,
                         self.grid,
                         -self.timeline,
                         target,
@@ -307,8 +383,7 @@ class TVHJImpl(PlotlyImpl[LevelSet], AxesImpl[LevelSet]):
             target = jnp.flip(target, axis=0)
         if not self.is_invariant(constraints):
             constraints = jnp.flip(constraints, axis=0)
-        vf = self.solve(self.SOLVER_SETTINGS,
-                        self.avoid_dynamics,
+        vf = self.solve(self.avoid_dynamics,
                         self.grid,
                         -self.timeline,
                         target,

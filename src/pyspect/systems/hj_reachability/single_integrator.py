@@ -4,10 +4,10 @@ from hj_reachability import dynamics
 from hj_reachability import sets
 
 
-class DoubleIntegrator(dynamics.ControlAndDisturbanceAffineDynamics):
+class SingleIntegrator(dynamics.ControlAndDisturbanceAffineDynamics):
 
     def __init__(self,
-                 min_accel, max_accel,
+                 min_vel, max_vel,
                  ndim=1,
                  min_disturbances=None, 
                  max_disturbances=None,
@@ -18,33 +18,31 @@ class DoubleIntegrator(dynamics.ControlAndDisturbanceAffineDynamics):
 
         self._open_loop_dynamics = jnp.kron(
             jnp.array([
-                [0., 1.],
-                [0., 0.],
+                [0.],
             ]),
             jnp.eye(ndim)
         )
 
         self._control_jacobian = jnp.kron(
             jnp.array([
-                [0.],
                 [1.],
             ]),
             jnp.eye(ndim)
         )
 
         self._disturbance_jacobian = jnp.kron(
-            jnp.identity(2),
+            jnp.identity(1),
             jnp.eye(ndim)
         )
 
         if min_disturbances is None:
-            min_disturbances = [0] * (2*ndim)
+            min_disturbances = [0] * (1*ndim)
         if max_disturbances is None:
-            max_disturbances = [0] * (2*ndim)
+            max_disturbances = [0] * (1*ndim)
 
         if control_space is None:
-            control_space = sets.Box(jnp.array([min_accel]),
-                                     jnp.array([max_accel]))
+            control_space = sets.Box(jnp.array([min_vel]),
+                                     jnp.array([max_vel]))
         
         if disturbance_space is None:
             disturbance_space = sets.Box(jnp.array(min_disturbances),

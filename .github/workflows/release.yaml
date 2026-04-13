@@ -37,9 +37,9 @@ jobs:
     name: Publish to PyPI
     needs: [build]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')   # publish only on tag events
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     environment:
-      name: pypi
+      name: pypi release
       url: https://pypi.org/p/pyspect
     permissions:
       id-token: write  # for PyPI Trusted Publishing (OIDC)
@@ -58,7 +58,7 @@ jobs:
     name: Sign dists with Sigstore and create GitHub Release
     needs: [publish]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')   # only for tag events
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     permissions:
       contents: write  # create GitHub Releases
       id-token: write  # sigstore OIDC

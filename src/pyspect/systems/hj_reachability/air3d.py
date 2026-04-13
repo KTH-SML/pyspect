@@ -43,5 +43,14 @@ class Air3d(dynamics.ControlAndDisturbanceAffineDynamics):
             [1.],
         ])
 
+    def with_mode(self, mode: str):
+        assert mode in ["reach", "avoid"]
+        if mode == "reach":
+            self.control_mode = "min"
+            self.disturbance_mode = "max"
+        elif mode == "avoid":
+            self.control_mode = "max"
+            self.disturbance_mode = "min"
+        return self
 
 DubinsCarCAvoid = Air3d
