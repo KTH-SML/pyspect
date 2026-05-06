@@ -2,12 +2,16 @@
 
 Follow these steps to install **pyspect** and run your first spec.
 
+## 0. Prerequisites
+
+- Python **>= 3.12**
+
 ## 1. Installation
 
 ```bash
 pip install pyspect
 
-# With optional implementaion
+# With optional implementation
 pip install pyspect[hj_reachability]
 ```
 
@@ -16,8 +20,8 @@ pip install pyspect[hj_reachability]
 ```python
 from pyspect.logics import *
 from pyspect.tlt import TLT, ContLTL
-from pyspect.sets import BoundedSet, Union, HalfSpaceSet
-from pyspect.impls.hj_reachability import HJImpl
+from pyspect.set_builder import BoundedSet, Union, HalfSpaceSet
+from pyspect.impls.hj_reachability import TVHJImpl
 
 # Choose fragment
 TLT.select(ContLTL)
@@ -33,7 +37,7 @@ tlt = TLT(phi, where={
 })
 
 # Realize on a backend
-impl = HJImpl(...)
+impl = TVHJImpl(...)
 Phi = tlt.realize(impl)
 print("Satisfaction set:", Phi)
 ```

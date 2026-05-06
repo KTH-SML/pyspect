@@ -35,6 +35,7 @@ pip install -e ".[hj_reachability]"
 from pyspect.logics import *
 from pyspect.tlt import TLT, ContLTL
 from pyspect.impls.hj_reachability import TVHJImpl
+from pyspect.set_builder import BoundedSet, Union, HalfSpaceSet
 
 # 1) Pick primitives/fragment
 TLT.select(ContLTL) # Continuous-time LTL

@@ -1,3 +1,25 @@
+"""ZonoOpt backend implementations.
+
+This module integrates the external ``zonoopt`` library with ``pyspect`` by
+providing a concrete backend for set operations and reachability queries used
+during TLT realization.
+
+Provided classes:
+    - ``ZonoOptImpl``: Main backend operating on ``zono.HybZono`` sets.
+    - ``DoubleIntegrator``: Convenience linear dynamics model for examples.
+
+Backend capabilities:
+    - Set operations: ``empty``, ``complement``, ``intersect``, ``union``
+    - Geometry: ``halfspace``
+    - Reachability: ``pre``, ``reach``, ``reachF``
+
+Requires:
+    - ``zonoopt``
+
+Notes:
+    - Targets discrete-time linear dynamics workflows.
+"""
+
 import numpy as np
 import zonoopt as zono
 from scipy import sparse
