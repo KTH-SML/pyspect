@@ -36,10 +36,10 @@ nav:
     - hj_reachability: implementations/hj_reachability.md
     - ZonoOpt: implementations/zonoOpt.md
   - Helper Implementations:
-    - Base: implementations/base.md
-    - Axes: implementations/axes.md
-    - Plotly: implementations/plotly.md
-    - Debug: implementations/debug.md
+    - Base: implementations/dev/base.md
+    - Axes: implementations/dev/axes.md
+    - Plotly: implementations/dev/plotly.md
+    - Debug: implementations/dev/debug.md
 
 extra_javascript:
   - mathjax.js
@@ -52,6 +52,7 @@ plugins:
         python:
           options:
             show_root_heading: false
+            show_source: false
 
 markdown_extensions:
   admonition:

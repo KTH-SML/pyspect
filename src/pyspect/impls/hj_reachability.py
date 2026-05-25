@@ -1,9 +1,26 @@
-"""
-Hamilton-Jacobi reachability implementations using the hj_reachability package.
+"""Hamilton-Jacobi backend implementations.
+
+This module integrates the external ``hj_reachability`` package with
+``pyspect`` by providing a concrete backend for level-set operations and
+time-varying reachability queries used during TLT realization.
+
+Provided classes:
+    - ``TVHJImpl``: Main HJ backend operating on gridded level-set arrays.
+    - ``TVHJImplDebugger``: Debug helper for inspecting HJ backend behavior.
+
+Backend capabilities:
+    - Set operations: ``empty``, ``complement``, ``intersect``, ``union``
+    - Geometry: ``halfspace`` and axis-aware projections
+    - Reachability: ``pre``, ``reach``, ``avoid`` with time-varying
+      targets/constraints
+    - Visualization: Plotly-based bitmap/surface/isosurface transforms
 
 Requires:
-    - hj_reachability
-    - jax_tqdm
+    - ``hj_reachability``
+    - ``jax_tqdm``
+
+Notes:
+    - Uses JAX arrays as the underlying set/value representation.
 """
 
 import functools
