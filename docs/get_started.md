@@ -44,5 +44,6 @@ print("Satisfaction set:", Phi)
 
 ## 3. Next Steps
 
-<!-- * Check the [User Guide](user-guide/) for details on **logic fragments**, **set-builders**, and **backend interfaces**. -->
-Explore example notebooks in `examples/`.
+- **[Set Builders Guide](tutorials/set_builder_guide.md)** — describe boxes, half-spaces, and simple shapes (start here before temporal logic)
+- [Set Builders reference](reference/set_builder.md) — full API
+- Example notebooks in `examples/` (3D figures: `explore_3d_setbuilders.ipynb`)

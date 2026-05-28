@@ -27,6 +27,8 @@ theme:
 nav:
   - Home: index.md
   - Get Started: get_started.md
+  - Tutorials:
+    - Set Builders Guide: tutorials/set_builder_guide.md
   - Core Concepts & Reference:
     - Set Builders: reference/set_builder.md
     - Logic Fragments: reference/logics.md
