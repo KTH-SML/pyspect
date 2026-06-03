@@ -42,7 +42,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .cache               # <- build runs at repo root
-          key: mkdocs-${{ runner.os }}-${{ hashFiles('mkdocs.yml', '**/*.md') }}
+          key: mkdocs-${{ runner.os }}-${{ hashFiles('mkdocs.yml', '**/*.md', '**/*.ipynb') }}
           restore-keys: mkdocs-${{ runner.os }}-
 
       - name: Build site

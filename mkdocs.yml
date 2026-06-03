@@ -21,14 +21,15 @@ copyright: "2025, Kaj Munhoz Arfvidsson"
 
 theme: 
   name: shadcn
-  icon: media/icon.svg
+  # Absolute URL Works on nested pages
+  icon: https://kth-sml.github.io/pyspect/media/icon.svg
   favicon: media/icon.svg
 
 nav:
   - Home: index.md
   - Get Started: get_started.md
   - Tutorials:
-    - Set Builders Guide: tutorials/set_builder_guide.md
+    - Set Builders Guide: tutorials/set_builders.ipynb
   - Core Concepts & Reference:
     - Set Builders: reference/set_builder.md
     - Logic Fragments: reference/logics.md
@@ -49,12 +50,20 @@ extra_javascript:
 
 plugins:
   - search
+  - mkdocs-jupyter:
+      execute: false
+      include_source: true
+      ignore_h1_titles: false
   - mkdocstrings:
       handlers:
         python:
           options:
             show_root_heading: false
             show_source: false
+            docstring_options:
+              warnings: false
+              warn_unknown_params: false
+              warn_missing_types: false
 
 markdown_extensions:
   admonition:
