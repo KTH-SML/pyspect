@@ -32,7 +32,6 @@ docs = [
   "mkdocstrings-python==1.18.2",
   "mkdocs-jupyter>=0.26",
   "pymdown-extensions==10.16.1",
-  "kaleido>=0.2.1",
 ]
 hj_reachability = ["hj_reachability>=0.7,<0.8"]
 zonoopt = ["zonoopt"]
