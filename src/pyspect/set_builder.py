@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import Any
 from functools import reduce
 from warnings import deprecated
+import math
 
 from .impls.dev.base import Impl, ImplClient
 from .impls.dev.axes import Axis
@@ -26,6 +27,7 @@ __all__ = (
     'ABSURD',
     'EMPTY',
     'HalfSpaceSet',
+    'PolytopeSet',
     'BoundedSet',
     'Compl',
     'Inter',
@@ -237,18 +239,73 @@ class PolytopeSet[R](SetBuilder[R]):
     @classmethod
     def halfspace(cls, axes: list[Axis], normal: list[float], offset: list[float], **kwds: Any) -> SetBuilder[R]:
         """Convenience constructor for a single halfspace."""
-        raise NotImplementedError("PolytopeSet.halfspace is not implemented yet. Use HalfSpaceSet instead.")
+        return cls(normals=[normal], offsets=[offset], axes=axes, **kwds)
 
     @classmethod
     def slab(cls, axes: list[Axis], normal: list[float], offset: list[float], width: float, **kwds: Any) -> SetBuilder[R]:
-        """Convenience constructor for a slab between two parallel hyperplanes."""
-        raise NotImplementedError("PolytopeSet.slab is not implemented yet. Use Inter(HalfSpaceSet(...), HalfSpaceSet(...)) instead.")    
+        """Convenience constructor for a slab between two parallel hyperplanes.
+
+        The first face uses ``(normal, offset)``; the second is parallel at distance
+        ``width`` along ``normal`` (same convention as ``HalfSpaceSet``).
+        """
+        assert width > 0, "PolytopeSet.slab requires positive width."
+        n = [float(k) for k in normal]
+        o = [float(m) for m in offset]
+        norm = math.hypot(*n)
+        assert norm > 0, "PolytopeSet.slab requires a non-zero normal."
+        o_far = [oi + width * ni / norm for oi, ni in zip(o, n)]
+        return cls(normals=[n, [-ni for ni in n]], offsets=[o, o_far], axes=axes, **kwds)
 
     @classmethod
     def box(cls, **bounds: tuple[float, float]) -> SetBuilder[R]:
-        """Convenience constructor for an axis-aligned box/hyper-cube."""
-        raise NotImplementedError("PolytopeSet.box is not implemented yet. Use AlignedBoxSet instead.")
-    
+        """Convenience constructor for an axis-aligned box/hyper-rectangle."""
+        assert bounds, "PolytopeSet.box requires at least one axis bound."
+        axes = list(bounds.keys())
+        normals: list[list[float]] = []
+        offsets: list[list[float]] = []
+        nd = len(axes)
+        for i, name in enumerate(axes):
+            vmin, vmax = bounds[name]
+            if vmin is Ellipsis or vmax is Ellipsis:
+                raise ValueError(
+                    "PolytopeSet.box only supports closed finite bounds; "
+                    "use AlignedBoxSet for unbounded sides."
+                )
+            lo = [0.0] * nd
+            hi = [0.0] * nd
+            lo[i] = float(vmin)
+            hi[i] = float(vmax)
+            n_lo = [0.0] * nd
+            n_hi = [0.0] * nd
+            n_lo[i] = 1.0
+            n_hi[i] = -1.0
+            normals.extend([n_lo, n_hi])
+            offsets.extend([lo, hi])
+        return cls(normals=normals, offsets=offsets, axes=axes)
+
+    @classmethod
+    def from_vertices(
+        cls,
+        vertices: list[list[float]],
+        axes: list[Axis],
+        **kwds: Any,
+    ) -> SetBuilder[R]:
+        """Convex polygon from CCW-ordered vertices in 2D (one halfspace per edge)."""
+        assert len(axes) == 2, "PolytopeSet.from_vertices expects exactly two axes."
+        assert len(vertices) >= 3, "PolytopeSet.from_vertices requires at least 3 vertices."
+        verts = [[float(v[i]) for i in range(2)] for v in vertices]
+
+        normals: list[list[float]] = []
+        offsets: list[list[float]] = []
+        for k in range(len(verts)):
+            v0 = verts[k]
+            v1 = verts[(k + 1) % len(verts)]
+            dx = v1[0] - v0[0]
+            dy = v1[1] - v0[1]
+            normals.append([-dy, dx])
+            offsets.append(v0)
+        return cls(normals=normals, offsets=offsets, axes=axes, **kwds)
+
     @classmethod
     def polygon(
         cls, 
@@ -260,7 +317,28 @@ class PolytopeSet[R](SetBuilder[R]):
         **kwds: Any,
     ) -> SetBuilder[R]:
         """Convenience constructor for a regular polygon in 2D."""
-        raise NotImplementedError("PolytopeSet.polygon is not implemented yet. Use Inter(HalfSpaceSet(...), ...) instead.")
+        assert order >= 3, "PolytopeSet.polygon requires order >= 3."
+        assert radius > 0, "PolytopeSet.polygon requires positive radius."
+        assert len(axes) == 2, "PolytopeSet.polygon expects exactly two axes."
+        center = [0.0, 0.0] if center is None else [float(c) for c in center]
+        assert len(center) == 2, "PolytopeSet.polygon center must have length 2."
+        if basis is None:
+            b1, b2 = [1.0, 0.0], [0.0, 1.0]
+        else:
+            b1, b2 = basis
+            b1, b2 = [float(v) for v in b1], [float(v) for v in b2]
+            assert len(b1) == len(b2) == 2, "PolytopeSet.polygon basis vectors must have length 2."
+
+        vertices = [
+            [
+                center[i] + radius * (math.cos(2 * math.pi * k / order) * b1[i]
+                                      + math.sin(2 * math.pi * k / order) * b2[i])
+                for i in range(2)
+            ]
+            for k in range(order)
+        ]
+
+        return cls.from_vertices(vertices, axes=axes, **kwds)
     
 
 class HalfSpaceSet[R](SetBuilder[R]):

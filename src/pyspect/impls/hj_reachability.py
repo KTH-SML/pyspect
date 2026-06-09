@@ -360,6 +360,20 @@ class TVHJImpl(PlotlyImpl[LevelSet], AxesImpl[LevelSet]):
         
         return data
 
+    def polytope(self, normals, offsets, axes=None, **kwds):
+        """Intersection of half-spaces; one (normal, offset) pair per face."""
+        axes = axes or list(range(self.ndim))
+        axes = [self.axis(i) for i in axes]
+
+        assert len(normals) == len(offsets) > 0
+        assert all(len(n) == len(axes) == len(o) for n, o in zip(normals, offsets))
+
+        # Intersection identity: complement(empty) == -inf (see AlignedBoxSet).
+        out = self.complement(self.empty())
+        for normal, offset in zip(normals, offsets):
+            out = self.intersect(out, self.halfspace(normal, offset, axes=axes))
+        return out
+
     def empty(self):
         # return jnp.ones(self._shape_inv)*jnp.inf # NOTE: something buggy
         return jnp.ones(self.shape)*jnp.inf
