@@ -3,7 +3,7 @@
 This module defines a tiny DSL of lazy "set builders" that describe sets and
 set operations without committing to a concrete representation. A SetBuilder
 is realized by an `Impl[R]` (see `pyspect.impls.*`), which interprets operations
-(e.g., `empty`, `complement`, `intersect`, `halfspace`).
+(e.g., `empty`, `complement`, `intersect`, `polytope`).
 
 Key ideas:
     - Builders are composable and track requirements on the target `Impl`.
@@ -198,7 +198,7 @@ class PolytopeSet[R](SetBuilder[R]):
 
         ⋂_i { x | n_i · (x - o_i) >= 0 }
 
-    or whatever exact halfspace convention your `Impl.halfspace(...)` uses.
+    or whatever exact halfspace convention your `Impl.polytope(...)` uses.
 
     Note:
         This builder does not check boundedness. So mathematically this is
@@ -346,17 +346,19 @@ class HalfSpaceSet[R](SetBuilder[R]):
 
     Note: The set is in the direction of the normal.
 
+    Realized via ``PolytopeSet.halfspace`` (a single-face ``PolytopeSet``).
+
     Parameters:
         normal: coefficients along each axis
         offset: offsets along each axis
         axes: axis indices (or str if using `AxesImpl`) in the `Impl`'s coordinate system
-        kwds: forwarded to `Impl.halfspace`
+        kwds: forwarded to `PolytopeSet.halfspace` / `Impl.polytope`
 
     Requires:
-        - `Impl.halfspace(normal, offset, axes, ...) -> R`
+        - `Impl.polytope(normals, offsets, axes, ...) -> R`
     """
 
-    __require__ = ('halfspace',)
+    __require__ = ('polytope',)
 
     def __init__(
         self,
@@ -372,10 +374,12 @@ class HalfSpaceSet[R](SetBuilder[R]):
         self.kwds = kwds
     
     def __call__(self, impl: Impl[R], **m: SetBuilder[R]) -> R:
-        return impl.halfspace(normal=self.normal, 
-                              offset=self.offset, 
-                              axes=[impl.axis(ax) for ax in self.axes],
-                              **self.kwds)
+        return PolytopeSet.halfspace(
+            axes=self.axes,
+            normal=self.normal,
+            offset=self.offset,
+            **self.kwds,
+        )(impl, **m)
 
 class AlignedBoxSet[R](SetBuilder[R]):
     """Axis-aligned box possibly unbounded on one side per axis.
@@ -430,7 +434,7 @@ class AlignedBoxSet[R](SetBuilder[R]):
                                              offset=[0 if i != j else vmax for j in range(impl.ndim)])
                 axis_range = impl.complement(impl.intersect(upper_bound, lower_bound))
             else:
-                # NOTE: See similar assertion in TVHJImpl's halfspace
+                # NOTE: See similar assertion in TVHJImpl.polytope
                 amin, amax = impl.axis_bounds(i)
                 assert amin < vmin < amax, f'For dimension "{name}", {amin} < {vmin=} < {amax}. Use Ellipsis (...) to indicate subset stretching to the space boundary.'
                 assert amin < vmax < amax, f'For dimension "{name}", {amin} < {vmax=} < {amax}. Use Ellipsis (...) to indicate subset stretching to the space boundary.'
