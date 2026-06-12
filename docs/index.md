@@ -47,5 +47,15 @@ impl.plot(out, axes=('x', 'y', 't')).show()
 ## Cite
 
 ```bibtex
-TBD
+@inproceedings{11311974,
+	title = {pyspect: An Extensible Toolbox for Automatic Construction of Temporal Logic Trees via Reachability Analysis},
+	issn = {2576-2370},
+	url = {https://ieeexplore.ieee.org/abstract/document/11311974},
+	doi = {10.1109/CDC57313.2025.11311974},
+	shorttitle = {pyspect},
+	pages = {6911--6918},
+	booktitle = {2025 {IEEE} 64th Conference on Decision and Control ({CDC})},
+	author = {Arfvidsson, Kaj Munhoz and Hadjiloizou, Loizos and Jiang, Frank J. and Johansson, Karl H. and Mårtensson, Jonas},
+	date = {2025-12},
+}
 ```
