@@ -10,7 +10,7 @@ Provided classes:
 
 Backend capabilities:
     - Set operations: ``empty``, ``complement``, ``intersect``, ``union``
-    - Geometry: ``polytope`` and axis-aware projections
+    - Geometry: ``halfspace``, ``polytope`` and axis-aware projections
     - Reachability: ``pre``, ``reach``, ``avoid`` with time-varying
       targets/constraints
     - Visualization: Plotly-based bitmap/surface/isosurface transforms
@@ -37,6 +37,7 @@ from hj_reachability.finite_differences import upwind_first
 
 from .dev.axes import *
 from .dev.plotly import *
+from .dev.sets import LinearSetImpl, QuadraticSetImpl
 
 __all__ = [
     'TVHJImpl',
@@ -48,7 +49,7 @@ type LevelSet = jnp.ndarray
 # Hamilton-Jacobi Reachability With Time-Varying Targets and Constraints
 # ----------------------------------------------------------------------
 
-class TVHJImpl(PlotlyImpl[LevelSet], AxesImpl[LevelSet]):
+class TVHJImpl(PlotlyImpl[LevelSet], AxesImpl[LevelSet], LinearSetImpl[LevelSet], QuadraticSetImpl[LevelSet]):
 
     upwind_scheme: callable
     time_integrator: callable
@@ -333,6 +334,12 @@ class TVHJImpl(PlotlyImpl[LevelSet], AxesImpl[LevelSet]):
         return im
 
     ## Set Interfaces ##        
+
+    def halfspace(self, normal, offset, axes=None, **kwds):
+        axes = axes or list(range(self.ndim))
+        axes = [self.axis(i) for i in axes]
+        assert len(axes) == len(normal) == len(offset)
+        return self.polytope(normals=[normal], offsets=[offset], axes=axes, **kwds)
 
     def polytope(self, normals, offsets, axes=None, **kwds):
         """Intersection of half-spaces; one (normal, offset) pair per face."""
