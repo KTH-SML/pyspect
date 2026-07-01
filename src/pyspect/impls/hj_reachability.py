@@ -335,12 +335,6 @@ class TVHJImpl(PlotlyImpl[LevelSet], AxesImpl[LevelSet], LinearSetImpl[LevelSet]
 
     ## Set Interfaces ##        
 
-    def halfspace(self, normal, offset, axes=None, **kwds):
-        axes = axes or list(range(self.ndim))
-        axes = [self.axis(i) for i in axes]
-        assert len(axes) == len(normal) == len(offset)
-        return self.polytope(normals=[normal], offsets=[offset], axes=axes, **kwds)
-
     def polytope(self, normals, offsets, axes=None, **kwds):
         """Intersection of half-spaces; one (normal, offset) pair per face."""
         axes = axes or list(range(self.ndim))

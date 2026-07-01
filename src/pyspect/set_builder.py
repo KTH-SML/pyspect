@@ -12,7 +12,6 @@ Key ideas:
 """
 from __future__ import annotations
 from typing import Any
-from functools import reduce
 from warnings import deprecated
 
 from .impls.dev.base import Impl, ImplClient
@@ -25,8 +24,7 @@ __all__ = (
     'Set',
     'ABSURD',
     'EMPTY',
-    'HalfSpaceSet',
-    'PolytopeSet',
+    'Deferred',
     'BoundedSet',
     'Compl',
     'Inter',
@@ -189,7 +187,7 @@ EMPTY: EmptySet = EmptySet()
 ## ## ## ## ## ## ## ##
 ## Linear Primitives
 
-def _deferred_impl[R](method: str, /, **kwargs: Any) -> SetBuilder[R]:
+def Deferred[R](method: str, /, **kwargs: Any) -> SetBuilder[R]:
     """Lazy builder that calls ``Impl.<method>(...)`` at realization."""
 
     class _Deferred(SetBuilder[R]):
@@ -198,7 +196,8 @@ def _deferred_impl[R](method: str, /, **kwargs: Any) -> SetBuilder[R]:
         def __call__(self, impl: Impl[R], **m: SetBuilder[R]) -> R:
             kw = dict(kwargs)
             if method == 'box':
-                bounds = kw.pop('bounds')
+                bounds = kw.pop('bounds', None) or kw
+                kw = {}
                 return impl.box(bounds, axes=[impl.axis(ax) for ax in bounds.keys()], **kw)
             if 'axes' in kw:
                 kw['axes'] = [impl.axis(ax) for ax in kw['axes']]
@@ -206,139 +205,6 @@ def _deferred_impl[R](method: str, /, **kwargs: Any) -> SetBuilder[R]:
 
     return _Deferred()
 
-
-class PolytopeSet[R](SetBuilder[R]):
-    """Polytope / polyhedral set as intersection of finitely many halfspaces.
-
-    The set is defined by rows of `normals` and corresponding `offsets`, i.e.
-    one halfspace per row. Geometrically, this realizes
-
-        ⋂_i { x | n_i · (x - o_i) >= 0 }
-
-    or whatever exact halfspace convention your `Impl.polytope(...)` uses.
-
-    Note:
-        This builder does not check boundedness. So mathematically this is
-        really a general polyhedral set; whether it is a true polytope depends
-        on the supplied halfspaces.
-
-    Parameters:
-        normals: one normal vector per halfspace
-        offsets: one offset point/vector per halfspace
-        axes: axis indices (or str if using `AxesImpl`) in the `Impl`'s coordinate system
-        kwds: forwarded to each `Impl.polytope` call
-
-    Requires:
-        - `Impl.polytope(normals, offsets, axes, ...) -> R`
-    """
-
-    __require__ = ('polytope',)
-
-    def __init__(
-        self,
-        normals: list[list[float]],
-        offsets: list[list[float]],
-        axes: list[Axis],
-        **kwds: Any,
-    ) -> None:
-        assert len(normals) > 0, "PolytopeSet requires at least one halfspace."
-        assert len(normals) == len(offsets), "PolytopeSet requires one offset per normal."
-        assert all(len(n) == len(axes) for n in normals), "Each normal must have same length as axes."
-        assert all(len(o) == len(axes) for o in offsets), "Each offset must have same length as axes."
-        self.normals = normals
-        self.offsets = offsets
-        self.axes = axes
-        self.kwds = kwds
-
-    def __call__(self, impl: Impl[R], **m: SetBuilder[R]) -> R:
-        return impl.polytope(self.normals, self.offsets, [impl.axis(ax) for ax in self.axes], **self.kwds)
-
-    @classmethod
-    def halfspace(cls, axes: list[Axis], normal: list[float], offset: list[float], **kwds: Any) -> SetBuilder[R]:
-        """Convenience constructor; delegates to ``HalfSpaceSet``."""
-        return HalfSpaceSet(normal=normal, offset=offset, axes=axes, **kwds)
-
-    @classmethod
-    def slab(cls, axes: list[Axis], normal: list[float], offset: list[float], width: float, **kwds: Any) -> SetBuilder[R]:
-        """Convenience constructor; calls ``Impl.slab``."""
-        assert width > 0, "PolytopeSet.slab requires positive width."
-        assert len(axes) == len(normal) == len(offset)
-        return _deferred_impl('slab', normal=normal, offset=offset, width=width, axes=axes, **kwds)
-
-    @classmethod
-    def box(cls, **bounds: tuple[float, float]) -> SetBuilder[R]:
-        """Convenience constructor; calls ``Impl.box``."""
-        assert bounds, "PolytopeSet.box requires at least one axis bound."
-        return _deferred_impl('box', bounds=bounds)
-
-    @classmethod
-    def from_vertices(
-        cls,
-        vertices: list[list[float]],
-        axes: list[Axis],
-        **kwds: Any,
-    ) -> SetBuilder[R]:
-        """Convenience constructor; calls ``Impl.from_vertices``."""
-        assert len(axes) == 2, "PolytopeSet.from_vertices expects exactly two axes."
-        assert len(vertices) >= 3, "PolytopeSet.from_vertices requires at least 3 vertices."
-        return _deferred_impl('from_vertices', vertices=vertices, axes=axes, **kwds)
-
-    @classmethod
-    def polygon(
-        cls, 
-        order: int, 
-        radius: float,
-        axes: list[Axis],
-        center: list[float] | None = None,
-        basis: tuple[list[float], list[float]] | None = None,
-        **kwds: Any,
-    ) -> SetBuilder[R]:
-        """Convenience constructor; calls ``Impl.polygon``."""
-        assert order >= 3, "PolytopeSet.polygon requires order >= 3."
-        assert radius > 0, "PolytopeSet.polygon requires positive radius."
-        assert len(axes) == 2, "PolytopeSet.polygon expects exactly two axes."
-        return _deferred_impl(
-            'polygon',
-            order=order,
-            radius=radius,
-            axes=axes,
-            center=center,
-            basis=basis,
-            **kwds,
-        )
-    
-
-class HalfSpaceSet[R](SetBuilder[R]):
-    """Half-space described by the normal and offset of a hyperplane.
-
-    Note: The set is in the direction of the normal.
-
-    Requires:
-        - `Impl.halfspace(normal, offset, axes, ...) -> R`
-    """
-
-    __require__ = ('halfspace',)
-
-    def __init__(
-        self,
-        normal: list[float],
-        offset: list[float],
-        axes: list[Axis],
-        **kwds: Any,
-    ) -> None:
-        assert len(axes) == len(normal) == len(offset)
-        self.normal = normal
-        self.offset = offset
-        self.axes = axes
-        self.kwds = kwds
-    
-    def __call__(self, impl: Impl[R], **m: SetBuilder[R]) -> R:
-        return impl.halfspace(
-            normal=self.normal,
-            offset=self.offset,
-            axes=[impl.axis(ax) for ax in self.axes],
-            **self.kwds,
-        )
 
 class AlignedBoxSet[R](SetBuilder[R]):
     """Axis-aligned box possibly unbounded on one side per axis.
