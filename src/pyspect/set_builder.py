@@ -12,6 +12,7 @@ Key ideas:
 """
 from __future__ import annotations
 from typing import Any
+from functools import partial
 from warnings import deprecated
 
 from .impls.dev.base import Impl, ImplClient
@@ -19,16 +20,11 @@ from .impls.dev.axes import Axis
 
 __all__ = (
     'SetBuilder',
-    'ReferredSet',
-    'AppliedSet',
-    'Set',
-    'ABSURD',
-    'EMPTY',
-    'Deferred',
-    'BoundedSet',
-    'Compl',
-    'Inter',
-    'Union',
+    'Set', 'ABSURD', 'ReferredSet', 'AppliedSet',
+    'EMPTY', 'Compl', 'Inter', 'Union',
+    'PolytopeSet', 'HalfSpaceSet', 'SlabSet', 'AlignedBoxSet', 'BoxSet',
+    'BoundedSet', 'VerticesSet', 'PolygonSet',
+    'QuadraticSet', 'BallSet', 'CylinderSet', 'EllipsoidSet',
 )
 
 
@@ -106,10 +102,12 @@ class ReferredSet[R](SetBuilder[R]):
         return sb(impl, **m)
 
 class AppliedSet[R](SetBuilder[R]):
-    """Defer a call to a function `f` where `args` are realized builders.
+    """Defer a call to a function `f` where `args` can be set builders.
 
     The function is specified by name `funcname` and looked up on the `Impl` at 
-    realization, i.e. `Impl.<funcname>(*args)`, or a direct lambda if `func` is a callable.
+    realization, i.e. `Impl.<funcname>(*args, **kwds)`, or a direct lambda if
+    `func` is a callable. Only `args` are allowed to be set builders (or 
+    constants), i.e. `kwds` are passed directly to the function.
 
     - Accumulates required `Impl` methods from children and adds `funcname`.
     - Propagates and de-duplicates children's free variables.
@@ -117,9 +115,10 @@ class AppliedSet[R](SetBuilder[R]):
     - Wraps child exceptions to pinpoint which argument failed.
     """
 
-    def __init__(self, func: str | callable, *builders: SetBuilder[R]) -> None:
+    def __init__(self, func: str | callable, *args, **kwds) -> None:
         self.func = func
-        self.builders = builders
+        self.args = args
+        self.kwds = kwds
 
         if isinstance(func, str):        
             _require = (func,)
@@ -128,10 +127,10 @@ class AppliedSet[R](SetBuilder[R]):
         else:
             raise TypeError("Expected a string or callable for 'func'")
 
-
-        for builder in self.builders:
-            _require += builder.__require__
-            self.free += tuple(name for name in builder.free if name not in self.free)
+        for builder in self.args:
+            if isinstance(builder, SetBuilder):
+                _require += builder.__require__
+                self.free += tuple(name for name in builder.free if name not in self.free)
 
         self.add_requirements(_require)        
 
@@ -145,68 +144,47 @@ class AppliedSet[R](SetBuilder[R]):
                 raise AttributeError(f'Impl {impl.__class__.__name__} does not support "{self.func}".') from e
         
         args = []
-        for i, sb in enumerate(self.builders):
-            try:
-                args.append(sb(impl, **m))
-            except Exception as e:
-                E = type(e)
-                raise E(f'When applying "{self.func}" on argument {i}, received: {e!s}') from e
+        for i, arg in enumerate(self.args):
+            if isinstance(arg, SetBuilder):
+                try:
+                    args.append(arg(impl, **m))
+                except Exception as e:
+                    E = type(e)
+                    raise E(f'When applying "{self.func}" on argument {i}, received: {e!s}') from e
+            else:
+                args.append(arg)
         
-        return func(*args)
+        return func(*args, **self.kwds)
 
 
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 ## User-friendly Primitives & Operations
 
-def Compl[R](*args: SetBuilder[R]) -> SetBuilder[R]:
-    """Return complement of a builder via Impl.complement."""
-    return AppliedSet('complement', *args)
+# Singleton instance of the empty set builder.
+EMPTY = AppliedSet('empty')
 
-def Inter[R](*args: SetBuilder[R]) -> SetBuilder[R]:
-    """Return intersection of builders via Impl.intersect."""
-    return AppliedSet('intersect', *args)
+# Return complement of a builder via Impl.complement.
+Compl = partial(AppliedSet, 'complement')
 
-def Union[R](*args: SetBuilder[R]) -> SetBuilder[R]:
-    """Return union of builders via Impl.union."""
-    return AppliedSet('union', *args)
+# Return intersection of builders via Impl.intersect.
+Inter = partial(AppliedSet, 'intersect')
 
-class EmptySet[R](SetBuilder[R]):
-    """Builder for the empty set.
-    
-    Requires:
-        - `Impl.empty() -> R`
-    """
-
-    __require__ = ('empty',)
-
-    def __call__(self, impl: Impl[R], **m: SetBuilder[R]) -> R:
-        return impl.empty()
-    
-EMPTY: EmptySet = EmptySet()
+# Return union of builders via Impl.union.
+Union = partial(AppliedSet, 'union')
 
 ## ## ## ## ## ## ## ##
 ## Linear Primitives
 
-def Deferred[R](method: str, /, **kwargs: Any) -> SetBuilder[R]:
-    """Lazy builder that calls ``Impl.<method>(...)`` at realization."""
+PolytopeSet = partial(AppliedSet, 'polytope')
 
-    class _Deferred(SetBuilder[R]):
-        __require__ = (method,)
+HalfSpaceSet = partial(AppliedSet, 'halfspace')
 
-        def __call__(self, impl: Impl[R], **m: SetBuilder[R]) -> R:
-            kw = dict(kwargs)
-            if method == 'box':
-                bounds = kw.pop('bounds', None) or kw
-                kw = {}
-                return impl.box(bounds, axes=[impl.axis(ax) for ax in bounds.keys()], **kw)
-            if 'axes' in kw:
-                kw['axes'] = [impl.axis(ax) for ax in kw['axes']]
-            return getattr(impl, method)(**kw)
+SlabSet = partial(AppliedSet, 'slab')
 
-    return _Deferred()
+# TODO: Clean up among different versions.
+AlignedBoxSet = BoxSet = partial(AppliedSet, 'box')
 
-
-class AlignedBoxSet[R](SetBuilder[R]):
+class _AlignedBoxSet[R](SetBuilder[R]):
     """Axis-aligned box possibly unbounded on one side per axis.
 
     Bounds mapping: `name -> (vmin, vmax)`. Use Ellipsis to denote an open side
@@ -272,10 +250,22 @@ class AlignedBoxSet[R](SetBuilder[R]):
         return s
 
 @deprecated("BoundedSet is renamed to AlignedBoxSet for clarity, please use AlignedBoxSet instead of BoundedSet.")
-class BoundedSet[R](AlignedBoxSet[R]): ...
+class BoundedSet[R](_AlignedBoxSet[R]): ...
+
+VerticesSet = partial(AppliedSet, 'from_vertices')
+
+PolygonSet = partial(AppliedSet, 'polygon')
 
 ## ## ## ## ## ## ## ## ##
 ## Quadratic Primitives
+
+QuadraticSet = partial(AppliedSet, 'quadratic')
+
+BallSet = partial(AppliedSet, 'ball')
+
+CylinderSet = partial(AppliedSet, 'cylinder')
+
+EllipsoidSet = partial(AppliedSet, 'ellipsoid')
 
 class QuadraticSet[R](SetBuilder[R]):
 
