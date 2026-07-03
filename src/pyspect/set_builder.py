@@ -217,23 +217,24 @@ class _AlignedBoxSet[R](SetBuilder[R]):
         self.bounds = bounds
 
     def __call__(self, impl: Impl[R], **m: SetBuilder[R]) -> R:
+        axes = list(range(impl.ndim))
         s = impl.complement(impl.empty())
         for name, (vmin, vmax) in self.bounds.items():
             i = impl.axis(name)
             if vmin is Ellipsis:
                 assert vmax is not Ellipsis, f'Invalid bounds for axis {impl.axis_name(i)}, there must be either an upper or lower bound.'
-                upper_bound = impl.halfspace(normal=[0 if i != j else -1 for j in range(impl.ndim)],
+                upper_bound = impl.halfspace(axes=axes, normal=[0 if i != j else -1 for j in range(impl.ndim)],
                                              offset=[0 if i != j else vmax for j in range(impl.ndim)])
                 axis_range = upper_bound
             elif vmax is Ellipsis:
                 assert vmin is not Ellipsis, f'Invalid bounds for axis {impl.axis_name(i)}, there must be either an upper or lower bound.'
-                lower_bound = impl.halfspace(normal=[0 if i != j else +1 for j in range(impl.ndim)],
+                lower_bound = impl.halfspace(axes=axes, normal=[0 if i != j else +1 for j in range(impl.ndim)],
                                              offset=[0 if i != j else vmin for j in range(impl.ndim)])
                 axis_range = lower_bound
             elif impl.axis_is_periodic(i) and vmax < vmin:
-                upper_bound = impl.halfspace(normal=[0 if i != j else -1 for j in range(impl.ndim)],
+                upper_bound = impl.halfspace(axes=axes, normal=[0 if i != j else -1 for j in range(impl.ndim)],
                                              offset=[0 if i != j else vmin for j in range(impl.ndim)])
-                lower_bound = impl.halfspace(normal=[0 if i != j else +1 for j in range(impl.ndim)],
+                lower_bound = impl.halfspace(axes=axes, normal=[0 if i != j else +1 for j in range(impl.ndim)],
                                              offset=[0 if i != j else vmax for j in range(impl.ndim)])
                 axis_range = impl.complement(impl.intersect(upper_bound, lower_bound))
             else:
@@ -241,9 +242,9 @@ class _AlignedBoxSet[R](SetBuilder[R]):
                 amin, amax = impl.axis_bounds(i)
                 assert amin < vmin < amax, f'For dimension "{name}", {amin} < {vmin=} < {amax}. Use Ellipsis (...) to indicate subset stretching to the space boundary.'
                 assert amin < vmax < amax, f'For dimension "{name}", {amin} < {vmax=} < {amax}. Use Ellipsis (...) to indicate subset stretching to the space boundary.'
-                upper_bound = impl.halfspace(normal=[0 if i != j else -1 for j in range(impl.ndim)],
+                upper_bound = impl.halfspace(axes=axes, normal=[0 if i != j else -1 for j in range(impl.ndim)],
                                              offset=[0 if i != j else vmax for j in range(impl.ndim)])
-                lower_bound = impl.halfspace(normal=[0 if i != j else +1 for j in range(impl.ndim)],
+                lower_bound = impl.halfspace(axes=axes, normal=[0 if i != j else +1 for j in range(impl.ndim)],
                                              offset=[0 if i != j else vmin for j in range(impl.ndim)])
                 axis_range = impl.intersect(upper_bound, lower_bound)
             s = impl.intersect(s, axis_range)
