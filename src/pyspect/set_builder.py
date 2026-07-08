@@ -3,7 +3,7 @@
 This module defines a tiny DSL of lazy "set builders" that describe sets and
 set operations without committing to a concrete representation. A SetBuilder
 is realized by an `Impl[R]` (see `pyspect.impls.*`), which interprets operations
-(e.g., `empty`, `complement`, `intersect`, `halfspace`).
+(e.g., `empty`, `complement`, `intersect`, `polytope`).
 
 Key ideas:
     - Builders are composable and track requirements on the target `Impl`.
@@ -12,7 +12,7 @@ Key ideas:
 """
 from __future__ import annotations
 from typing import Any
-from functools import reduce
+from functools import partial
 from warnings import deprecated
 
 from .impls.dev.base import Impl, ImplClient
@@ -20,16 +20,11 @@ from .impls.dev.axes import Axis
 
 __all__ = (
     'SetBuilder',
-    'ReferredSet',
-    'AppliedSet',
-    'Set',
-    'ABSURD',
-    'EMPTY',
-    'HalfSpaceSet',
-    'BoundedSet',
-    'Compl',
-    'Inter',
-    'Union',
+    'Set', 'ABSURD', 'ReferredSet', 'AppliedSet',
+    'EMPTY', 'Compl', 'Inter', 'Union',
+    'PolytopeSet', 'HalfSpaceSet', 'SlabSet', 'AlignedBoxSet', 'BoxSet',
+    'BoundedSet', 'VerticesSet', 'PolygonSet',
+    'QuadraticSet', 'BallSet', 'CylinderSet', 'EllipsoidSet',
 )
 
 
@@ -107,10 +102,12 @@ class ReferredSet[R](SetBuilder[R]):
         return sb(impl, **m)
 
 class AppliedSet[R](SetBuilder[R]):
-    """Defer a call to a function `f` where `args` are realized builders.
+    """Defer a call to a function `f` where `args` can be set builders.
 
     The function is specified by name `funcname` and looked up on the `Impl` at 
-    realization, i.e. `Impl.<funcname>(*args)`, or a direct lambda if `func` is a callable.
+    realization, i.e. `Impl.<funcname>(*args, **kwds)`, or a direct lambda if
+    `func` is a callable. Only `args` are allowed to be set builders (or 
+    constants), i.e. `kwds` are passed directly to the function.
 
     - Accumulates required `Impl` methods from children and adds `funcname`.
     - Propagates and de-duplicates children's free variables.
@@ -118,9 +115,10 @@ class AppliedSet[R](SetBuilder[R]):
     - Wraps child exceptions to pinpoint which argument failed.
     """
 
-    def __init__(self, func: str | callable, *builders: SetBuilder[R]) -> None:
+    def __init__(self, func: str | callable, *args, **kwds) -> None:
         self.func = func
-        self.builders = builders
+        self.args = args
+        self.kwds = kwds
 
         if isinstance(func, str):        
             _require = (func,)
@@ -129,10 +127,10 @@ class AppliedSet[R](SetBuilder[R]):
         else:
             raise TypeError("Expected a string or callable for 'func'")
 
-
-        for builder in self.builders:
-            _require += builder.__require__
-            self.free += tuple(name for name in builder.free if name not in self.free)
+        for builder in self.args:
+            if isinstance(builder, SetBuilder):
+                _require += builder.__require__
+                self.free += tuple(name for name in builder.free if name not in self.free)
 
         self.add_requirements(_require)        
 
@@ -146,160 +144,47 @@ class AppliedSet[R](SetBuilder[R]):
                 raise AttributeError(f'Impl {impl.__class__.__name__} does not support "{self.func}".') from e
         
         args = []
-        for i, sb in enumerate(self.builders):
-            try:
-                args.append(sb(impl, **m))
-            except Exception as e:
-                E = type(e)
-                raise E(f'When applying "{self.func}" on argument {i}, received: {e!s}') from e
+        for i, arg in enumerate(self.args):
+            if isinstance(arg, SetBuilder):
+                try:
+                    args.append(arg(impl, **m))
+                except Exception as e:
+                    E = type(e)
+                    raise E(f'When applying "{self.func}" on argument {i}, received: {e!s}') from e
+            else:
+                args.append(arg)
         
-        return func(*args)
+        return func(*args, **self.kwds)
 
 
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 ## User-friendly Primitives & Operations
 
-def Compl[R](*args: SetBuilder[R]) -> SetBuilder[R]:
-    """Return complement of a builder via Impl.complement."""
-    return AppliedSet('complement', *args)
+# Singleton instance of the empty set builder.
+EMPTY = AppliedSet('empty')
 
-def Inter[R](*args: SetBuilder[R]) -> SetBuilder[R]:
-    """Return intersection of builders via Impl.intersect."""
-    return AppliedSet('intersect', *args)
+# Return complement of a builder via Impl.complement.
+Compl = partial(AppliedSet, 'complement')
 
-def Union[R](*args: SetBuilder[R]) -> SetBuilder[R]:
-    """Return union of builders via Impl.union."""
-    return AppliedSet('union', *args)
+# Return intersection of builders via Impl.intersect.
+Inter = partial(AppliedSet, 'intersect')
 
-class EmptySet[R](SetBuilder[R]):
-    """Builder for the empty set.
-    
-    Requires:
-        - `Impl.empty() -> R`
-    """
-
-    __require__ = ('empty',)
-
-    def __call__(self, impl: Impl[R], **m: SetBuilder[R]) -> R:
-        return impl.empty()
-    
-EMPTY: EmptySet = EmptySet()
+# Return union of builders via Impl.union.
+Union = partial(AppliedSet, 'union')
 
 ## ## ## ## ## ## ## ##
 ## Linear Primitives
 
-class PolytopeSet[R](SetBuilder[R]):
-    """Polytope / polyhedral set as intersection of finitely many halfspaces.
+PolytopeSet = partial(AppliedSet, 'polytope')
 
-    The set is defined by rows of `normals` and corresponding `offsets`, i.e.
-    one halfspace per row. Geometrically, this realizes
+HalfSpaceSet = partial(AppliedSet, 'halfspace')
 
-        ⋂_i { x | n_i · (x - o_i) >= 0 }
+SlabSet = partial(AppliedSet, 'slab')
 
-    or whatever exact halfspace convention your `Impl.halfspace(...)` uses.
+# TODO: Clean up among different versions.
+AlignedBoxSet = BoxSet = partial(AppliedSet, 'box')
 
-    Note:
-        This builder does not check boundedness. So mathematically this is
-        really a general polyhedral set; whether it is a true polytope depends
-        on the supplied halfspaces.
-
-    Parameters:
-        normals: one normal vector per halfspace
-        offsets: one offset point/vector per halfspace
-        axes: axis indices (or str if using `AxesImpl`) in the `Impl`'s coordinate system
-        kwds: forwarded to each `Impl.polytope` call
-
-    Requires:
-        - `Impl.polytope(normals, offsets, axes, ...) -> R`
-    """
-
-    __require__ = ('polytope',)
-
-    def __init__(
-        self,
-        normals: list[list[float]],
-        offsets: list[list[float]],
-        axes: list[Axis],
-        **kwds: Any,
-    ) -> None:
-        assert len(normals) > 0, "PolytopeSet requires at least one halfspace."
-        assert len(normals) == len(offsets), "PolytopeSet requires one offset per normal."
-        assert all(len(n) == len(axes) for n in normals), "Each normal must have same length as axes."
-        assert all(len(o) == len(axes) for o in offsets), "Each offset must have same length as axes."
-        self.normals = normals
-        self.offsets = offsets
-        self.axes = axes
-        self.kwds = kwds
-
-    def __call__(self, impl: Impl[R], **m: SetBuilder[R]) -> R:
-        return impl.polytope(self.normals, self.offsets, [impl.axis(ax) for ax in self.axes], **self.kwds)
-
-    @classmethod
-    def halfspace(cls, axes: list[Axis], normal: list[float], offset: list[float], **kwds: Any) -> SetBuilder[R]:
-        """Convenience constructor for a single halfspace."""
-        raise NotImplementedError("PolytopeSet.halfspace is not implemented yet. Use HalfSpaceSet instead.")
-
-    @classmethod
-    def slab(cls, axes: list[Axis], normal: list[float], offset: list[float], width: float, **kwds: Any) -> SetBuilder[R]:
-        """Convenience constructor for a slab between two parallel hyperplanes."""
-        raise NotImplementedError("PolytopeSet.slab is not implemented yet. Use Inter(HalfSpaceSet(...), HalfSpaceSet(...)) instead.")    
-
-    @classmethod
-    def box(cls, **bounds: tuple[float, float]) -> SetBuilder[R]:
-        """Convenience constructor for an axis-aligned box/hyper-cube."""
-        raise NotImplementedError("PolytopeSet.box is not implemented yet. Use AlignedBoxSet instead.")
-    
-    @classmethod
-    def polygon(
-        cls, 
-        order: int, 
-        radius: float,
-        axes: list[Axis],
-        center: list[float] | None = None,
-        basis: tuple[list[float], list[float]] | None = None,
-        **kwds: Any,
-    ) -> SetBuilder[R]:
-        """Convenience constructor for a regular polygon in 2D."""
-        raise NotImplementedError("PolytopeSet.polygon is not implemented yet. Use Inter(HalfSpaceSet(...), ...) instead.")
-    
-
-class HalfSpaceSet[R](SetBuilder[R]):
-    """Half-space described by the normal and offset of a hyperplane.
-
-    Note: The set is in the direction of the normal.
-
-    Parameters:
-        normal: coefficients along each axis
-        offset: offsets along each axis
-        axes: axis indices (or str if using `AxesImpl`) in the `Impl`'s coordinate system
-        kwds: forwarded to `Impl.halfspace`
-
-    Requires:
-        - `Impl.halfspace(normal, offset, axes, ...) -> R`
-    """
-
-    __require__ = ('halfspace',)
-
-    def __init__(
-        self,
-        normal: list[float],
-        offset: list[float],
-        axes: list[Axis],
-        **kwds: Any,
-    ) -> None:
-        assert len(axes) == len(normal) == len(offset)
-        self.normal = normal
-        self.offset = offset
-        self.axes = axes
-        self.kwds = kwds
-    
-    def __call__(self, impl: Impl[R], **m: SetBuilder[R]) -> R:
-        return impl.halfspace(normal=self.normal, 
-                              offset=self.offset, 
-                              axes=[impl.axis(ax) for ax in self.axes],
-                              **self.kwds)
-
-class AlignedBoxSet[R](SetBuilder[R]):
+class _AlignedBoxSet[R](SetBuilder[R]):
     """Axis-aligned box possibly unbounded on one side per axis.
 
     Bounds mapping: `name -> (vmin, vmax)`. Use Ellipsis to denote an open side
@@ -332,57 +217,84 @@ class AlignedBoxSet[R](SetBuilder[R]):
         self.bounds = bounds
 
     def __call__(self, impl: Impl[R], **m: SetBuilder[R]) -> R:
+        axes = list(range(impl.ndim))
         s = impl.complement(impl.empty())
         for name, (vmin, vmax) in self.bounds.items():
             i = impl.axis(name)
             if vmin is Ellipsis:
                 assert vmax is not Ellipsis, f'Invalid bounds for axis {impl.axis_name(i)}, there must be either an upper or lower bound.'
-                upper_bound = impl.halfspace(normal=[0 if i != j else -1 for j in range(impl.ndim)],
+                upper_bound = impl.halfspace(axes=axes, normal=[0 if i != j else -1 for j in range(impl.ndim)],
                                              offset=[0 if i != j else vmax for j in range(impl.ndim)])
                 axis_range = upper_bound
             elif vmax is Ellipsis:
                 assert vmin is not Ellipsis, f'Invalid bounds for axis {impl.axis_name(i)}, there must be either an upper or lower bound.'
-                lower_bound = impl.halfspace(normal=[0 if i != j else +1 for j in range(impl.ndim)],
+                lower_bound = impl.halfspace(axes=axes, normal=[0 if i != j else +1 for j in range(impl.ndim)],
                                              offset=[0 if i != j else vmin for j in range(impl.ndim)])
                 axis_range = lower_bound
             elif impl.axis_is_periodic(i) and vmax < vmin:
-                upper_bound = impl.halfspace(normal=[0 if i != j else -1 for j in range(impl.ndim)],
+                upper_bound = impl.halfspace(axes=axes, normal=[0 if i != j else -1 for j in range(impl.ndim)],
                                              offset=[0 if i != j else vmin for j in range(impl.ndim)])
-                lower_bound = impl.halfspace(normal=[0 if i != j else +1 for j in range(impl.ndim)],
+                lower_bound = impl.halfspace(axes=axes, normal=[0 if i != j else +1 for j in range(impl.ndim)],
                                              offset=[0 if i != j else vmax for j in range(impl.ndim)])
                 axis_range = impl.complement(impl.intersect(upper_bound, lower_bound))
             else:
-                # NOTE: See similar assertion in TVHJImpl's halfspace
+                # NOTE: See similar assertion in TVHJImpl.polytope
                 amin, amax = impl.axis_bounds(i)
                 assert amin < vmin < amax, f'For dimension "{name}", {amin} < {vmin=} < {amax}. Use Ellipsis (...) to indicate subset stretching to the space boundary.'
                 assert amin < vmax < amax, f'For dimension "{name}", {amin} < {vmax=} < {amax}. Use Ellipsis (...) to indicate subset stretching to the space boundary.'
-                upper_bound = impl.halfspace(normal=[0 if i != j else -1 for j in range(impl.ndim)],
+                upper_bound = impl.halfspace(axes=axes, normal=[0 if i != j else -1 for j in range(impl.ndim)],
                                              offset=[0 if i != j else vmax for j in range(impl.ndim)])
-                lower_bound = impl.halfspace(normal=[0 if i != j else +1 for j in range(impl.ndim)],
+                lower_bound = impl.halfspace(axes=axes, normal=[0 if i != j else +1 for j in range(impl.ndim)],
                                              offset=[0 if i != j else vmin for j in range(impl.ndim)])
                 axis_range = impl.intersect(upper_bound, lower_bound)
             s = impl.intersect(s, axis_range)
         return s
 
 @deprecated("BoundedSet is renamed to AlignedBoxSet for clarity, please use AlignedBoxSet instead of BoundedSet.")
-class BoundedSet[R](AlignedBoxSet[R]): ...
+class BoundedSet[R](_AlignedBoxSet[R]): ...
+
+VerticesSet = partial(AppliedSet, 'from_vertices')
+
+PolygonSet = partial(AppliedSet, 'polygon')
 
 ## ## ## ## ## ## ## ## ##
 ## Quadratic Primitives
 
-class QuadricSet[R](SetBuilder[R]):
-    
+QuadraticSet = partial(AppliedSet, 'quadratic')
+
+BallSet = partial(AppliedSet, 'ball')
+
+CylinderSet = partial(AppliedSet, 'cylinder')
+
+EllipsoidSet = partial(AppliedSet, 'ellipsoid')
+
+class QuadraticSet[R](SetBuilder[R]):
+
     @classmethod
-    def ball(cls):
-        raise NotImplementedError("QuadricSet.ball is not implemented yet. Use BallSet instead.")
+    def ball(
+        cls,
+        center: list[float],
+        radius: float,
+        axes: list[Axis],
+        **kwds: Any,
+    ) -> SetBuilder[R]:
+        """Convenience constructor; returns a ``BallSet``."""
+        return BallSet(center=center, radius=radius, axes=axes, **kwds)
 
     @classmethod
     def ellipsoid(cls):
-        raise NotImplementedError("QuadricSet.ellipsoid is not implemented yet. Use Inter(HalfSpaceSet(...), ...) instead.")
-    
+        raise NotImplementedError("QuadraticSet.ellipsoid is not implemented yet. Use Inter(HalfSpaceSet(...), ...) instead.")
+
     @classmethod
-    def cylinder(cls):
-        raise NotImplementedError("QuadricSet.cylinder is not implemented yet. Use CylinderSet instead.")
+    def cylinder(
+        cls,
+        center: list[float],
+        radius: float,
+        vector: list[float],
+        **kwds: Any,
+    ) -> SetBuilder[R]:
+        """Convenience constructor; returns a ``CylinderSet``."""
+        return CylinderSet(center=center, radius=radius, vector=vector, **kwds)
 
 class BallSet[R](SetBuilder[R]):
     """Ball in hyperspace.

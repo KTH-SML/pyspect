@@ -10,7 +10,7 @@ Provided classes:
 
 Backend capabilities:
     - Set operations: ``empty``, ``complement``, ``intersect``, ``union``
-    - Geometry: ``halfspace`` and axis-aware projections
+    - Geometry: ``halfspace``, ``polytope`` and axis-aware projections
     - Reachability: ``pre``, ``reach``, ``avoid`` with time-varying
       targets/constraints
     - Visualization: Plotly-based bitmap/surface/isosurface transforms
@@ -37,6 +37,7 @@ from hj_reachability.finite_differences import upwind_first
 
 from .dev.axes import *
 from .dev.plotly import *
+from .dev.sets import LinearSetImpl, QuadraticSetImpl
 
 __all__ = [
     'TVHJImpl',
@@ -48,7 +49,7 @@ type LevelSet = jnp.ndarray
 # Hamilton-Jacobi Reachability With Time-Varying Targets and Constraints
 # ----------------------------------------------------------------------
 
-class TVHJImpl(PlotlyImpl[LevelSet], AxesImpl[LevelSet]):
+class TVHJImpl(PlotlyImpl[LevelSet], AxesImpl[LevelSet], LinearSetImpl[LevelSet], QuadraticSetImpl[LevelSet]):
 
     upwind_scheme: callable
     time_integrator: callable
@@ -334,31 +335,34 @@ class TVHJImpl(PlotlyImpl[LevelSet], AxesImpl[LevelSet]):
 
     ## Set Interfaces ##        
 
-    def halfspace(self, normal, offset, axes=None):
+    def polytope(self, normals, offsets, axes=None, **kwds):
+        """Intersection of half-spaces; one (normal, offset) pair per face."""
         axes = axes or list(range(self.ndim))
         axes = [self.axis(i) for i in axes]
 
-        assert len(axes) == len(normal) == len(offset)
-        
-        data = jnp.zeros([self.shape[i] if i in axes else 1
-                         for i in range(self.ndim)])
-        for i, k, m in zip(axes, normal, offset):
-            # Doesn't contribute
-            if k == 0: continue
-            
-            # NOTE: Without this condition, problems may arise that are VERY ANNOYING to debug...
-            amin, amax = self.axis_bounds(i)
-            assert amin <= m <= amax, (
-                f'For axis {i} ({self.axis_name(i)}): '
-                f'Offset ({m}) must be inside boundary ({(amin, amax)}) to avoid numerical instability'
-            )
+        assert len(normals) == len(offsets) > 0
+        assert all(len(n) == len(axes) == len(o) for n, o in zip(normals, offsets))
 
-            # normalize wrt discretization 
-            # k /= self.axis_step(i)
-            
-            data -= k*( self.axis_vec(i) - m )
-        
-        return data
+        # Intersection identity: complement(empty) == -inf (see AlignedBoxSet).
+        out = self.complement(self.empty())
+        for normal, offset in zip(normals, offsets):
+            data = jnp.zeros([self.shape[i] if i in axes else 1
+                             for i in range(self.ndim)])
+            for i, k, m in zip(axes, normal, offset):
+                if k == 0:
+                    continue
+
+                # NOTE: Without this condition, problems may arise that are VERY ANNOYING to debug...
+                amin, amax = self.axis_bounds(i)
+                assert amin <= m <= amax, (
+                    f'For axis {i} ({self.axis_name(i)}): '
+                    f'Offset ({m}) must be inside boundary ({(amin, amax)}) to avoid numerical instability'
+                )
+
+                data -= k * (self.axis_vec(i) - m)
+
+            out = self.intersect(out, data)
+        return out
 
     def empty(self):
         # return jnp.ones(self._shape_inv)*jnp.inf # NOTE: something buggy
@@ -440,12 +444,6 @@ class TVHJImplDebugger(TVHJImpl):
         else:
             vf = inp
         return super().is_invariant(vf)
-
-    def halfspace(self, *args, **kwds):
-        data = super().halfspace(*args, **kwds)
-        print(s := f'{token_hex(2)} = PLANE{self._shape_str(data)}')
-        print(self._underline(text := s) + '\n')
-        return data, text
 
     def empty(self):
         out = super().empty()
