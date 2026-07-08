@@ -30,6 +30,10 @@ __all__ = (
     'MINUS', 'IMPLIES',
     # Temporal Logic
     'NEXT', 'UNTIL', 'EVENTUALLY', 'ALWAYS',
+    # CTL / CTL*
+    'E_NEXT', 'A_NEXT', 'E_UNTIL', 'A_UNTIL',
+    'E_EVENTUALLY', 'A_EVENTUALLY', 'E_ALWAYS', 'A_ALWAYS',
+    'E_PATH', 'A_PATH',
 )
 
 # Type aliases for the tuple-shaped logic AST
@@ -252,7 +256,32 @@ PNEXT = declare('P-NEXT', 1)
 NEXT  = FNEXT
 
 ######################################################################
-## Logic Fragment: CTL* (TODO)
+## Logic Fragment: CTL / CTL*
+
+# NOTE: Future-time, path-quantified operators (E = exists path, A = all paths)
+
+E_FNEXT = declare('E-F-NEXT', 1)
+A_FNEXT = declare('A-F-NEXT', 1)
+E_NEXT  = E_FNEXT
+A_NEXT  = A_FNEXT
+
+E_FUNTIL = declare('E-F-UNTIL', 2)
+A_FUNTIL = declare('A-F-UNTIL', 2)
+E_UNTIL  = E_FUNTIL
+A_UNTIL  = A_FUNTIL
+
+E_FEVENTUALLY = declare('E-F-EVENTUALLY', 1)
+A_FEVENTUALLY = declare('A-F-EVENTUALLY', 1)
+E_EVENTUALLY  = E_FEVENTUALLY
+A_EVENTUALLY  = A_FEVENTUALLY
+
+E_FALWAYS = declare('E-F-ALWAYS', 1)
+A_FALWAYS = declare('A-F-ALWAYS', 1)
+E_ALWAYS  = E_FALWAYS
+A_ALWAYS  = A_FALWAYS
+
+E_PATH = declare('E-PATH', 1)
+A_PATH = declare('A-PATH', 1)
 
 ######################################################################
 ## Logic Fragment: STL (TODO)
