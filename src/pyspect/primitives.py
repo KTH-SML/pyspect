@@ -106,7 +106,8 @@ class primitive[R, **P]:
             formula = (self.head, *[arg._formula if isinstance(arg, TLT) else arg for arg in args])
             builder, approx = func(**{name: arg for name, arg in zip(self.tail, args)})
             setmap = idict(sum([list(arg._setmap.items()) for arg in args if isinstance(arg, TLT)], []))
-            tree = TLT.__new_init__(formula, builder, approx, setmap)
+            children = tuple(arg for arg in args if isinstance(arg, TLT))
+            tree = TLT.__new_init__(formula, builder, approx, setmap, children=children)
             tree.inherit_requirements(*args)
             return tree
         

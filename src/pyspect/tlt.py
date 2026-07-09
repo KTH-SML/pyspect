@@ -33,6 +33,7 @@ __all__ = (
     'TLTLike',
     'Identity',
     'APPROXDIR',
+    'TLTDiagnosticError',
     'TLTDebugger',
 )
 
@@ -131,6 +132,9 @@ class TLTDebugger:
 type SetMap[R] = idict[str, Optional[SetBuilder[R]]]
 type TLTLike[R] = TLExpr | TLT[R]
 type TLTLikeMap[R] = dict[str, TLTLike[R]]
+
+class TLTDiagnosticError(Exception):
+    """Raised when a TLT cannot be realized."""
 
 class TLT[R](ImplClient[R]):
     """Temporal Logic Tree node parameterized by a concrete set type R.
@@ -232,7 +236,7 @@ class TLT[R](ImplClient[R]):
         return cls.__primitives__[head](*args)
 
     @classmethod
-    def __new_init__(cls, formula=..., builder=..., approx=..., setmap=..., times=...):
+    def __new_init__(cls, formula=..., builder=..., approx=..., setmap=..., children=..., times=...):
         """Initialize a bare TLT instance with the provided internal fields."""
         self = super(TLT, cls).__new__(cls)
 
@@ -248,6 +252,7 @@ class TLT[R](ImplClient[R]):
         
         # Sets are associated with names using ReferredSets.
         self._setmap = setmap if setmap is not ... else idict()
+        self._children = children if children is not ... else tuple()
 
         self.inherit_requirements(self._builder)
 
@@ -257,6 +262,51 @@ class TLT[R](ImplClient[R]):
     _builder: SetBuilder[R]
     _approx: APPROXDIR
     _setmap: SetMap[R]
+    _children: tuple['TLT[R]', ...]
+
+    def _walk(self, path: str = 'root'):
+        """Visit each node with a path label (root.left, root.right, …)."""
+        yield self, path
+        n = len(self._children)
+        for i, child in enumerate(self._children):
+            sub = f'{path}.{"left" if i == 0 else "right"}' if n == 2 else f'{path}.arg{i}'
+            yield from child._walk(sub)
+
+    def explain(self, impl: Optional[Impl[R]] = None) -> str:
+        """Report why this tree cannot be realized (with path in the tree)."""
+        issues: list[str] = []
+
+        for name in self.iter_free():
+            path = next((p for node, p in self._walk() if node._formula == name), 'root')
+            issues.append(f"  [MISSING_PROPOSITION_BINDING] at {path}\n  Proposition '{name}' is not bound.")
+
+        if impl is not None:
+            for node, path in self._walk():
+                for op in node._builder.__require__:
+                    if not hasattr(impl, op):
+                        head = node._formula[0] if isinstance(node._formula, tuple) else node._formula
+                        issues.append(
+                            f"  [MISSING_IMPL_OPERATION] at {path}\n"
+                            f"  {type(impl).__name__} missing '{op}' (needs '{head}')."
+                        )
+
+        def deepest(node: 'TLT[R]', path: str) -> Optional[tuple['TLT[R]', str]]:
+            if node._approx is not APPROXDIR.INVALID:
+                return None
+            n = len(node._children)
+            for i, child in enumerate(node._children):
+                sub = f'{path}.{"left" if i == 0 else "right"}' if n == 2 else f'{path}.arg{i}'
+                if found := deepest(child, sub):
+                    return found
+            return node, path
+
+        if bad := deepest(self, 'root'):
+            node, path = bad
+            tags = ', '.join(c._approx.name for c in node._children)
+            head = node._formula[0] if isinstance(node._formula, tuple) else node._formula
+            issues.append(f"  [INVALID_APPROX_COMPOSITION] at {path}\n  '{head}' incompatible approximations ({tags}).")
+
+        return 'No issues detected.' if not issues else 'TLT diagnostic report:\n' + '\n'.join(issues)
     
     def __repr__(self) -> str:
         cls = type(self).__name__
@@ -283,13 +333,9 @@ class TLT[R](ImplClient[R]):
 
     def assert_realizable(self, impl: Optional[Impl[R]] = None) -> None:
         """Validate that this TLT can be realized, optionally against `impl`."""
-        for name, sb in self._setmap.items():
-            if sb is None: 
-                raise Exception(f'Missing proposition `{name}`')
-        if impl is not None and bool(missing := self.missing_ops(impl)):
-            raise Exception(f'Missing from implementation: {", ".join(missing)}')
-        if self._approx is APPROXDIR.INVALID:
-            raise Exception('Invalid approximation. TLT operational semantics of formula does not hold.')
+        report = self.explain(impl)
+        if report != 'No issues detected.':
+            raise TLTDiagnosticError(report.replace('TLT diagnostic report:', 'TLT specification error:', 1))
 
     def is_realizable(self, impl: Optional[Impl[R]] = None) -> bool:
         """Return True if assert_realizable would succeed."""
