@@ -107,7 +107,8 @@ class primitive[R, **P]:
             builder, approx = func(**{name: arg for name, arg in zip(self.tail, args)})
             setmap = idict(sum([list(arg._setmap.items()) for arg in args if isinstance(arg, TLT)], []))
             children = tuple(arg for arg in args if isinstance(arg, TLT))
-            tree = TLT.__new_init__(formula, builder, approx, setmap, children=children)
+            prim = next((a.primitives for a in args if isinstance(a, TLT)), ...)
+            tree = TLT.__new_init__(formula, builder, approx, setmap, children=children, primitives=prim)
             tree.inherit_requirements(*args)
             return tree
         
@@ -130,7 +131,11 @@ class primitive[R, **P]:
         assert (x := get_malformed(equiv)) is None, f"Equivalent formula must be well-formed, not {x}"
         assert get_props(self.formula) == get_props(equiv), "Formula and equivalent must have the same set of propositions"
 
-        func = lambda *args: TLT(equiv, **{name: arg for name, arg in zip(self.tail, args)})
+        def func(*args):
+            kwds = {name: arg for name, arg in zip(self.tail, args)}
+            if args and isinstance(args[0], TLT):
+                kwds['_primitives'] = args[0].primitives
+            return TLT(equiv, **kwds)
 
         return idict({self.head: func})
 

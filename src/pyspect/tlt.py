@@ -11,14 +11,14 @@ Key ideas:
         - _builder: a SetBuilder[R] describing the set semantics
         - _approx: an APPROXDIR flag describing the approximation direction
         - _setmap: a mapping from proposition names to SetBuilder bindings
-    - Primitives are registered on the class via
-      TLT.select(...) and used by __new_from_formula__ when building trees.
+    - Primitives are passed to TLT(..., primitives=...) and stored on each node.
     - Realization checks requirements (operations and bound props) and then calls
       the builder with the selected Impl.
 """
 
 from __future__ import annotations
 
+import re
 from enum import Enum
 from functools import wraps
 from typing import Optional, Callable
@@ -144,8 +144,7 @@ class TLT[R](ImplClient[R]):
     mapping from free proposition names to bound SetBuilders.
 
     Construction:
-        - TLT.select(primitives) must be called to choose available operators.
-        - TLT(arg, **where) dispatches based on the type of `arg`:
+        - TLT(arg, primitives=..., **where) dispatches based on the type of `arg`:
             str          -> proposition
             SetBuilder   -> constant set, assigned a unique proposition name
             tuple(TLExpr)-> formula; recursively constructs children via primitives
@@ -153,24 +152,39 @@ class TLT[R](ImplClient[R]):
 
     Realization:
         - Call .realize(impl) to obtain an R from an implementation.
-        - .assert_realizable() checks missing props/ops and approximation validity.
+        - Call .explain(impl) for a diagnostic report with tree visualization.
+        - .assert_realizable() / .realize() raise TLTDiagnosticError on failure.
     """
 
-    __primitives__ = idict({}) # Null set of primitives
+    __primitives__ = idict({}) # default when primitives= is omitted
 
     @classmethod
     def select(cls, primitives):
-        """Select the set of primitive operator implementations for this class."""
+        """Set class-default primitives (prefer TLT(..., primitives=...) instead)."""
         cls.__primitives__ = primitives
 
     @classmethod
-    def construct(cls, arg: TLTLike[R], **kwds: TLTLike[R]) -> TLT[R]:
+    def _pop_primitives(cls, arg: TLTLike[R], kwds: TLTLikeMap[R]) -> idict:
+        if '_primitives' in kwds:
+            return kwds['_primitives']
+        if 'primitives' in kwds:
+            return kwds.pop('primitives')
+        if isinstance(arg, TLT):
+            return arg.primitives
+        return cls.__primitives__
+
+    @classmethod
+    def construct(cls, arg: TLTLike[R], /, *, primitives=..., **kwds: TLTLike[R]) -> TLT[R]:
         """Explicit constructor alias to apply usual dispatch rules."""
+        if primitives is not ...:
+            kwds = dict(kwds, primitives=primitives)
         return cls(arg, **kwds)
 
     def __new__(cls, arg: TLTLike[R], **kwds: TLTLike[R]) -> TLT[R]:
         """Construct a TLT by dispatching on the kind of `arg`."""
-        if 'where' in kwds: kwds |= kwds.pop('where')
+        if 'where' in kwds:
+            kwds |= kwds.pop('where')
+        kwds['_primitives'] = cls._pop_primitives(arg, kwds)
         return (cls.__new_from_tlt__(arg, **kwds)      if isinstance(arg, TLT) else
                 cls.__new_from_prop__(arg, **kwds)     if isinstance(arg, str) else
                 cls.__new_from_builder__(arg, **kwds)  if isinstance(arg, Callable) else
@@ -183,20 +197,27 @@ class TLT[R](ImplClient[R]):
         # Create new TLT with updated information. With this, we can bind new 
         # TLT-like objects to free variables/propositions. We do not allow 
         # updates to existing propositions. First collect all updatable props.
+        prim = kwds.get('_primitives', tlt.primitives)
         kwds = {prop: kwds[prop] if prop in kwds else sb
                 for prop, sb in tlt._setmap.items()
                 if prop in kwds or sb is not None}
-
-        # It is best to reconstruct builders in the "top-level" TLT when there
-        # is updates to the tree since we have modified how 
+        kwds['_primitives'] = prim
         return cls.__new_from_formula__(tlt._formula, **kwds)
 
     @classmethod
     @TLTDebugger.wrap('prop')
     def __new_from_prop__(cls, prop: str, **kwds: TLTLike[R]) -> TLT[R]:
         """Create a TLT from a proposition name, optionally binding it from kwds."""
-        return (cls(kwds.pop(prop), **kwds) if prop in kwds else
-                cls.__new_init__(prop, ReferredSet(prop), setmap={prop: None}))
+        if prop in kwds:
+            child = cls(kwds.pop(prop), **kwds)
+            child._prop_name = prop
+            return child
+        self = cls.__new_init__(
+            prop, ReferredSet(prop), setmap={prop: None},
+            primitives=kwds.get('_primitives', ...),
+        )
+        self._prop_name = prop
+        return self
 
     @classmethod
     @TLTDebugger.wrap('builder')
@@ -211,7 +232,10 @@ class TLT[R](ImplClient[R]):
         # builder functions).
         name = f'_{sb.uid}'
         formula = name # UID is a proposition
-        self = cls.__new_init__(formula, ReferredSet(name), setmap={name: sb})
+        self = cls.__new_init__(
+            formula, ReferredSet(name), setmap={name: sb},
+            primitives=kwds.get('_primitives', ...),
+        )
 
         self.inherit_requirements(sb)
         
@@ -228,20 +252,24 @@ class TLT[R](ImplClient[R]):
         # Otherwise, it is a non-trivial formula
         head, *tail = formula
 
-        assert head in cls.__primitives__, \
+        prim = kwds.get('_primitives', cls.__primitives__)
+
+        assert head in prim, \
             f'Unknown operator `{head}` in formula `{formula}`. ' \
-            f'Available operators: {cls.__primitives__.keys()}'
+            f'Available operators: {prim.keys()}'
 
         args = [cls(arg, **kwds) for arg in tail]  # make TLTs of formula args
-        return cls.__primitives__[head](*args)
+        node = prim[head](*args)
+        node.primitives = prim
+        return node
 
     @classmethod
-    def __new_init__(cls, formula=..., builder=..., approx=..., setmap=..., children=..., times=...):
+    def __new_init__(cls, formula=..., builder=..., approx=..., setmap=..., children=..., primitives=...):
         """Initialize a bare TLT instance with the provided internal fields."""
         self = super(TLT, cls).__new__(cls)
 
         # Lock the selected language for this instance
-        self.__primitives__ = self.__primitives__
+        self.primitives = primitives if primitives is not ... else cls.__primitives__
 
         self._formula = formula if formula is not ... else '_0'
         
@@ -253,6 +281,7 @@ class TLT[R](ImplClient[R]):
         # Sets are associated with names using ReferredSets.
         self._setmap = setmap if setmap is not ... else idict()
         self._children = children if children is not ... else tuple()
+        self._prop_name: str | None = None
 
         self.inherit_requirements(self._builder)
 
@@ -263,21 +292,142 @@ class TLT[R](ImplClient[R]):
     _approx: APPROXDIR
     _setmap: SetMap[R]
     _children: tuple['TLT[R]', ...]
+    _prop_name: str | None
+
+    @staticmethod
+    def _child_path(parent_path: str, i: int, n: int) -> str:
+        if n == 2:
+            return f'{parent_path}.{"left" if i == 0 else "right"}'
+        return f'{parent_path}.arg{i}'
 
     def _walk(self, path: str = 'root'):
         """Visit each node with a path label (root.left, root.right, …)."""
         yield self, path
         n = len(self._children)
         for i, child in enumerate(self._children):
-            sub = f'{path}.{"left" if i == 0 else "right"}' if n == 2 else f'{path}.arg{i}'
-            yield from child._walk(sub)
+            yield from child._walk(self._child_path(path, i, n))
 
-    def explain(self, impl: Optional[Impl[R]] = None) -> str:
-        """Report why this tree cannot be realized (with path in the tree)."""
+    def _tree_name(self) -> str:
+        """User-facing node name (proposition name when known)."""
+        if self._prop_name is not None:
+            return self._prop_name
+        if isinstance(self._formula, str):
+            if not self._formula.startswith('_'):
+                return self._formula
+            sb = self._setmap.get(self._formula)
+            if sb is not None and hasattr(sb, 'arg'):
+                return str(sb.arg)
+            if sb is not None:
+                return type(sb).__name__
+            return 'set'
+        return self._formula[0].replace('F-', '')
+
+    def _tree_label(self) -> str:
+        """Short label for tree visualization (operator or proposition/set name)."""
+        if isinstance(self._formula, tuple):
+            head = self._formula[0].replace('F-', '')
+            if not self._children:
+                return head
+            args = ', '.join(c._tree_name() for c in self._children)
+            return f"{head}({args})"
+        name = self._tree_name()
+        if isinstance(self._formula, str) and self._formula.startswith('_'):
+            sb = self._setmap.get(self._formula)
+            if sb is not None and not hasattr(sb, 'arg'):
+                detail = type(sb).__name__
+                if detail != name:
+                    return detail
+        return name
+
+    def _tree_viz(self, error_paths: set[str]) -> list[str]:
+        rows: list[tuple[str, str]] = []
+
+        def right_col(node: 'TLT[R]', path: str) -> str:
+            if path in error_paths:
+                return '<= error here'
+            if node._approx is APPROXDIR.INVALID:
+                return '...'
+            return node._approx.name
+
+        def emit(node: 'TLT[R]', path: str, prefix: str, is_last: bool, is_root: bool, side: str = ''):
+            if is_root:
+                left = node._tree_label()
+            else:
+                branch = ('└─ ' if is_last else '├─ ') + side
+                left = f"{prefix}{branch}{node._tree_label()}"
+            rows.append((left, right_col(node, path)))
+            n = len(node._children)
+            ext = '' if is_root else prefix + ('    ' if is_last else '│   ')
+            for i, child in enumerate(node._children):
+                name = child._tree_name()
+                label = child._tree_label()
+                child_side = '' if label == name else f"{name}: "
+                emit(child, self._child_path(path, i, n), ext, i == n - 1, False, child_side)
+
+        emit(self, 'root', '', True, True)
+        width = max(len(left) for left, _ in rows) if rows else 0
+        return [f"{left.ljust(width)}  {right}" for left, right in rows]
+
+    @staticmethod
+    def _sb_leaf_message(exc: Exception) -> str:
+        msg = str(exc)
+        while 'received: ' in msg:
+            _, msg = msg.split('received: ', 1)
+        return msg.strip()
+
+    @staticmethod
+    def _sb_arg_chain(exc: Exception) -> list[int]:
+        return [int(i) for i in re.findall(r'on argument (\d+)', str(exc))]
+
+    def _localize_sb_error(
+        self,
+        node: 'TLT[R]',
+        path: str,
+        exc: Exception,
+        impl: Impl[R],
+        setmap: SetMap[R],
+    ) -> tuple[str, str]:
+        chain = self._sb_arg_chain(exc)
+        if chain:
+            cur, cur_path = node, path
+            for i in chain:
+                n = len(cur._children)
+                if i >= n:
+                    break
+                cur = cur._children[i]
+                cur_path = self._child_path(cur_path, i, n)
+            return cur_path, self._sb_leaf_message(exc)
+
+        for i, child in enumerate(node._children):
+            n = len(node._children)
+            child_path = self._child_path(path, i, n)
+            try:
+                child._builder(impl, **setmap)
+            except Exception as e:
+                return self._localize_sb_error(child, child_path, e, impl, setmap)
+        return path, self._sb_leaf_message(exc)
+
+    def _format_diagnostic_report(
+        self,
+        issues: list[str],
+        error_paths: set[str],
+        *,
+        tree: bool = False,
+    ) -> str:
+        lines = ['TLT diagnostic report:', *issues]
+        if tree:
+            lines.extend(['', 'Tree:'])
+            lines.extend(self._tree_viz(error_paths))
+        return '\n'.join(lines)
+
+    def _explain_report(self, impl: Optional[Impl[R]] = None, *, tree: bool = False, probe_sb: bool = True) -> str:
+        """Build the diagnostic report string; include tree visualization when tree=True."""
         issues: list[str] = []
+        error_paths: set[str] = set()
 
         for name in self.iter_free():
             path = next((p for node, p in self._walk() if node._formula == name), 'root')
+            error_paths.add(path)
             issues.append(f"  [MISSING_PROPOSITION_BINDING] at {path}\n  Proposition '{name}' is not bound.")
 
         if impl is not None:
@@ -285,6 +435,7 @@ class TLT[R](ImplClient[R]):
                 for op in node._builder.__require__:
                     if not hasattr(impl, op):
                         head = node._formula[0] if isinstance(node._formula, tuple) else node._formula
+                        error_paths.add(path)
                         issues.append(
                             f"  [MISSING_IMPL_OPERATION] at {path}\n"
                             f"  {type(impl).__name__} missing '{op}' (needs '{head}')."
@@ -295,18 +446,38 @@ class TLT[R](ImplClient[R]):
                 return None
             n = len(node._children)
             for i, child in enumerate(node._children):
-                sub = f'{path}.{"left" if i == 0 else "right"}' if n == 2 else f'{path}.arg{i}'
-                if found := deepest(child, sub):
+                if found := deepest(child, self._child_path(path, i, n)):
                     return found
             return node, path
 
         if bad := deepest(self, 'root'):
             node, path = bad
+            error_paths.add(path)
             tags = ', '.join(c._approx.name for c in node._children)
             head = node._formula[0] if isinstance(node._formula, tuple) else node._formula
             issues.append(f"  [INVALID_APPROX_COMPOSITION] at {path}\n  '{head}' incompatible approximations ({tags}).")
 
-        return 'No issues detected.' if not issues else 'TLT diagnostic report:\n' + '\n'.join(issues)
+        for node, path in self._walk():
+            if node._builder is ABSURD:
+                error_paths.add(path)
+                issues.append(f"  [SET_BUILDER_ERROR] at {path}\n  Cannot realize the absurd set.")
+
+        if probe_sb and impl is not None and not issues:
+            try:
+                self._builder(impl, **self._setmap)
+            except Exception as e:
+                sb_path, sb_msg = self._localize_sb_error(self, 'root', e, impl, self._setmap)
+                error_paths.add(sb_path)
+                issues.append(f"  [SET_BUILDER_ERROR] at {sb_path}\n  {sb_msg}")
+
+        if not issues:
+            return 'No issues detected.'
+
+        return self._format_diagnostic_report(issues, error_paths, tree=tree)
+
+    def explain(self, impl: Optional[Impl[R]] = None) -> None:
+        """Print a diagnostic report (with tree) for this TLT."""
+        print(self._explain_report(impl, tree=True))
     
     def __repr__(self) -> str:
         cls = type(self).__name__
@@ -321,26 +492,37 @@ class TLT[R](ImplClient[R]):
             - some proposition is unbound
             - required Impl operations are missing
             - approximation is INVALID
+            - a SetBuilder fails at realization
 
         memoize=True is reserved for a future optimization where realized sets
         may be cached on the node.
         """
         self.assert_realizable(impl)
-        out = self._builder(impl, **self._setmap)
+        try:
+            out = self._builder(impl, **self._setmap)
+        except Exception as e:
+            sb_path, sb_msg = self._localize_sb_error(self, 'root', e, impl, self._setmap)
+            report = self._format_diagnostic_report(
+                [f"  [SET_BUILDER_ERROR] at {sb_path}\n  {sb_msg}"],
+                {sb_path},
+            )
+            raise TLTDiagnosticError(report) from e
         if memoize:
             raise NotImplementedError() # TODO: builder = Set(out)
         return out
 
     def assert_realizable(self, impl: Optional[Impl[R]] = None) -> None:
-        """Validate that this TLT can be realized, optionally against `impl`."""
-        report = self.explain(impl)
+        """Validate TLT-level realizability; raises TLTDiagnosticError on failure."""
+        report = self._explain_report(impl, tree=False, probe_sb=False)
         if report != 'No issues detected.':
-            raise TLTDiagnosticError(report.replace('TLT diagnostic report:', 'TLT specification error:', 1))
+            raise TLTDiagnosticError(report)
 
     def is_realizable(self, impl: Optional[Impl[R]] = None) -> bool:
-        """Return True if assert_realizable would succeed."""
+        """Return True if this TLT can be realized against `impl`."""
         try:
             self.assert_realizable(impl)
+            if impl is not None:
+                self._builder(impl, **self._setmap)
         except Exception:
             return False
         else:
