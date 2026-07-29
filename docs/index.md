@@ -7,6 +7,8 @@ pyspect lets you write a specification **once** and realize it on interchangeabl
 **Temporal Logic Trees (TLTs)**. It performs **interface + approximation checks** before any heavy
 computation so your resulting satisfaction set remains **sound**.
 
+Backends: [Hamilton-Jacobi](implementations/hj_reachability.md) (level sets) and [Hybrid Zonotopes](implementations/zonoOpt.md) (zonotopes).
+
 ## Why pyspect
 
 - **Decouple** logic, set semantics and numerics → write specs once, compare reachability methods side-by-side.  
@@ -16,11 +18,10 @@ computation so your resulting satisfaction set remains **sound**.
 ## Quick Peek
 
 ```python
-T = BoundedSet(x=(-50,  +50))
+T = AlignedBoxSet(x=(-50,  +50))
 TASK = ALWAYS(T)
 
-TLT.select(ContLTL)
-objective = TLT(TASK, where={'goal': GOAL})
+objective = TLT(TASK, primitives=ContLTL, where={'goal': GOAL})
 
 # vvv Implementation-specific vvv
 
