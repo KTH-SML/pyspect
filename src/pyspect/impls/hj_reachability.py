@@ -88,7 +88,7 @@ class TVHJImpl(PlotlyImpl[LevelSet], AxesImpl[LevelSet], LinearSetImpl[LevelSet]
         self.timeline = jnp.linspace(min_bounds[0], max_bounds[0], grid_shape[0])
 
         self.grid = hj.Grid.from_lattice_parameters_and_boundary_conditions(
-            hj.sets.Box(min_bounds[1:], max_bounds[1:]),
+            hj.sets.Box(jnp.array(min_bounds[1:]), jnp.array(max_bounds[1:])),
             grid_shape[1:],
             periodic_dims=tuple(i-1 for i in range(self.ndim) if self.axis_is_periodic(i)),
         )
@@ -179,14 +179,14 @@ class TVHJImpl(PlotlyImpl[LevelSet], AxesImpl[LevelSet], LinearSetImpl[LevelSet]
                 i, _vf = carry
                 _vf = self.step(dynamics, grid, gamma, times[i], _vf, times[j+1])
                 _vf = jnp.minimum(_vf, target if is_target_invariant else target[j+1])
-                return (j, _vf), _vf
+                return (j+1, _vf), _vf
         else:
             def f(carry, j):
                 i, _vf = carry
                 _vf = self.step(dynamics, grid, gamma, times[i], _vf, times[j+1])
                 _vf = jnp.minimum(_vf, target if is_target_invariant else target[j+1])
                 _vf = jnp.maximum(_vf, constraint if is_constraint_invariant else constraint[j+1])
-                return (j, _vf), _vf
+                return (j+1, _vf), _vf
 
         if progress_bar:
             decorator = scan_tqdm(len(times)-1)
