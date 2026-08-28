@@ -10,7 +10,7 @@ Provided classes:
 
 Backend capabilities:
     - Set operations: ``empty``, ``complement``, ``intersect``, ``union``
-    - Geometry: ``halfspace``, ``polytope`` and axis-aware projections
+    - Geometry: ``halfspace``, ``polytope``, ``quadratic`` (ball / cylinder / ellipsoid), and axis-aware projections
     - Reachability: ``pre``, ``reach``, ``avoid`` with time-varying
       targets/constraints
     - Visualization: Plotly-based bitmap/surface/isosurface transforms
@@ -363,6 +363,29 @@ class TVHJImpl(PlotlyImpl[LevelSet], AxesImpl[LevelSet], LinearSetImpl[LevelSet]
 
             out = self.intersect(out, data)
         return out
+
+    def quadratic(self, A, b=None, c=0.0, axes=None, center=None, **kwds):
+        """``Q = (x-center)^T A (x-center) + b^T (x-center) + c`` on ``axes``.
+
+        Unused axes are unconstrained. Sublevel set is ``{Q ≤ 0}``.
+        """
+        axes = axes or list(range(self.ndim))
+        axes = [self.axis(i) for i in axes]
+        n = len(axes)
+        A = jnp.asarray(A, dtype=float)
+        assert A.shape == (n, n), f"A must be {n}x{n} for {n} axes, got {tuple(A.shape)}."
+        center = jnp.zeros(n) if center is None else jnp.asarray(center, dtype=float)
+        assert center.shape == (n,), f"center must have length {n}, got {center.shape}."
+        bvec = jnp.zeros(n) if b is None else jnp.asarray(b, dtype=float)
+        assert bvec.shape == (n,), f"b must have length {n}, got {bvec.shape}."
+
+        dxs = [self.axis_vec(i) - center[p] for p, i in enumerate(axes)]
+        out = jnp.asarray(c, dtype=float)
+        for p in range(n):
+            out = out + bvec[p] * dxs[p]
+            for q in range(n):
+                out = out + A[p, q] * dxs[p] * dxs[q]
+        return out + jnp.zeros(self.shape)
 
     def empty(self):
         # return jnp.ones(self._shape_inv)*jnp.inf # NOTE: something buggy
