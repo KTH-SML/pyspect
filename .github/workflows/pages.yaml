@@ -36,7 +36,7 @@ jobs:
         run: uv venv
 
       - name: Install docs dependencies
-        run: uv pip install .[docs,hj_reachability]
+        run: uv pip install .[docs,hj_reachability,symbolic]
   
       - name: Cache MkDocs assets
         uses: actions/cache@v4

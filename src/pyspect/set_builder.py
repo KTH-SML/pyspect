@@ -13,7 +13,7 @@ Key ideas:
 from __future__ import annotations
 from typing import Any
 from functools import partial
-from warnings import deprecated
+from typing_extensions import deprecated
 
 from .impls.dev.base import Impl, ImplClient
 from .impls.dev.axes import Axis

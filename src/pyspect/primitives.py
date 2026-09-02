@@ -39,6 +39,8 @@ __all__ = (
     'ContLTLAtomic', 'ContLTL',
     # Discrete LTL
     'DiscLTLAtomic', 'DiscLTL',
+    # Exact discrete LTL
+    'ExactDiscLTL',
     'LTL',
 )
 
@@ -142,6 +144,17 @@ class primitive[R, **P]:
 ## ## ## ## ## ## ## ## ## ##
 ## Propositional Fragments
 
+def _combine_monotone_approximations(*directions: APPROXDIR) -> APPROXDIR:
+    """Combine operands for a set operation monotone in every argument."""
+    if APPROXDIR.INVALID in directions:
+        return APPROXDIR.INVALID
+    non_exact = {direction for direction in directions if direction != APPROXDIR.EXACT}
+    if not non_exact:
+        return APPROXDIR.EXACT
+    if len(non_exact) == 1:
+        return non_exact.pop()
+    return APPROXDIR.INVALID
+
 @primitive(FALSIFY())
 def Falsify[R]() -> tuple[SetBuilder[R], APPROXDIR]:
     """Bottom/falsehood (∅)."""
@@ -166,9 +179,7 @@ def And[R](_1: TLTLike[R], _2: TLTLike[R]) -> tuple[SetBuilder[R], APPROXDIR]:
     b2, a2 = _2._builder, _2._approx
     return (
         AppliedSet('intersect', b1, b2),
-        APPROXDIR.INVALID if APPROXDIR.INVALID in (a1, a2) else
-        APPROXDIR.INVALID if APPROXDIR.UNDER in (a1, a2) else
-        APPROXDIR.OVER,
+        _combine_monotone_approximations(a1, a2),
     )
 
 @primitive(OR('_1', '_2'))
@@ -178,11 +189,7 @@ def Or[R](_1: TLTLike[R], _2: TLTLike[R]) -> tuple[SetBuilder[R], APPROXDIR]:
     b2, a2 = _2._builder, _2._approx
     return (
         AppliedSet('union', b1, b2),
-        APPROXDIR.INVALID if APPROXDIR.INVALID in (a1, a2) else
-        a1 if a1 == a2 else
-        a2 if a1 == APPROXDIR.EXACT else
-        a1 if a2 == APPROXDIR.EXACT else
-        APPROXDIR.INVALID,
+        _combine_monotone_approximations(a1, a2),
     )
 
 # Only the atomic formulas for propositional logic
@@ -243,3 +250,20 @@ ContLTL = ContLTLAtomic | Propositional | Eventually
 DiscLTL = DiscLTLAtomic | ContLTL
 LTL = DiscLTL # Default to discrete-time LTL
 
+## ## ## ## ## ## ## ## ## ##
+## Exact Temporal Logic Fragment
+
+@primitive(UNTIL('_1', '_2'))
+def ExactUntil[R](_1: TLTLike[R], _2: TLTLike[R]) -> tuple[SetBuilder[R], APPROXDIR]:
+    """Exact until for backends whose ``reach`` operation is exact."""
+    b1, a1 = _1._builder, _1._approx
+    b2, a2 = _2._builder, _2._approx
+    return (
+        AppliedSet('reach', b2, b1),
+        _combine_monotone_approximations(a1, a2),
+    )
+
+# Reuse all exact Boolean/next primitives and replace only the conservative
+# reach primitive used by the default discrete-time fragment.
+ExactDiscLTLAtomic = PropositionalAtomic | Next | ExactUntil
+ExactDiscLTL = ExactDiscLTLAtomic | Propositional | Eventually

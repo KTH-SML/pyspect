@@ -34,6 +34,7 @@ nav:
     - CDC '25: papers/cdc25.ipynb
   - Implementations:
     - hj_reachability: implementations/hj_reachability.md
+    - Symbolic integer signals: implementations/symbolic.md
     - ZonoOpt: implementations/zonoOpt.md
   - Helper Implementations:
     - Base: implementations/dev/base.md

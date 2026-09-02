@@ -24,6 +24,9 @@ pip install pyspect
 # Example to install with implementation-specific dependencies (Optional)
 pip install pyspect[hj_reachability]
 
+# Exact symbolic reachability for non-negative integer signals
+pip install pyspect[symbolic]
+
 # From source
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[hj_reachability]"

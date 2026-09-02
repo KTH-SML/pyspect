@@ -23,6 +23,7 @@ dynamic = ["version"]
 
 dependencies = [
   "plotly",
+  "typing-extensions>=4.5",
 ]
 
 [project.optional-dependencies]
@@ -35,6 +36,8 @@ docs = [
 ]
 hj_reachability = ["hj_reachability>=0.7,<0.8", "jax_tqdm>=0.4"]
 zonoopt = ["zonoopt"]
+symbolic = ["portion>=2.6,<3"]
+all = ["pyspect[hj_reachability,zonoopt,symbolic]"]
 
 [project.urls]
 Homepage = "https://kth-sml.github.io/pyspect"
