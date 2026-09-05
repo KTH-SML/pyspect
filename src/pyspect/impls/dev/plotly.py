@@ -42,13 +42,14 @@ implementations that inherit from it.
 from __future__ import annotations
 
 from functools import wraps
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Optional
 
 import numpy as np
 import plotly.graph_objects as go
 from plotly.basedatatypes import BaseFigure
 
 from .axes import Axis, AxesImpl
+from ...plotting.plotly import update_theme
 from ...utils import *
 
 __all__ = [
@@ -56,51 +57,6 @@ __all__ = [
     'with_figure',
 ]
 
-
-# ---------- Theming & figure setup ----------
-
-# TODO: Agent, update for argument `aspectratio`
-def update_theme(name: Optional[str] = None, *,
-                 aspectratio: str = "4:3",
-                 fig: BaseFigure) -> Dict[str, Any]:
-    """Apply layout for 2D/3D light/dark themes."""
-    
-    layout = dict(margin=dict(l=60, r=20, t=40, b=60))
-
-    if name is not None:
-
-        # Font
-        font = dict(family="Roboto, Arial, sans-serif", size=14)
-        layout.update(font=font)
-
-        # Dimensions
-        axes = dict(linewidth=2)
-        if name[-2:] not in ("2D", "3D"):
-            name += "2D"
-        if name.endswith("2D"):
-            layout.update(xaxis=axes, yaxis=axes)
-        if name.endswith("3D"):
-            layout.update(scene=dict(xaxis=axes, yaxis=axes, zaxis=axes))
-
-        # Color Theme
-        if name.startswith("Light"):
-            fig.update_layout(template="plotly_white")
-            layout.update(paper_bgcolor="rgba(255, 255, 255, 1)",
-                          plot_bgcolor="rgba(250, 250, 250, 1)")
-            font.update(color="black")
-            axes.update(linecolor="rgba(0, 0, 0, 0.3)",
-                        gridcolor="rgba(0, 0, 0, 0.1)",
-                        zerolinecolor="rgba(0, 0, 0, 0.3)")
-        if name.startswith("Dark"):
-            fig.update_layout(template="plotly_dark")
-            layout.update(paper_bgcolor="rgba(26, 28, 36, 1)",
-                          plot_bgcolor="rgba(26, 28, 36, 1)")
-            font.update(color="white")
-            axes.update(linecolor="rgba(255, 255, 255, 0.3)",
-                        gridcolor="rgba(255, 255, 255, 0.1)",
-                        zerolinecolor="rgba(255, 255, 255, 0.3)")
-
-    fig.update_layout(template_layout=layout)
 
 def with_figure(f: Optional[Callable] = None, *, dim: Optional[int] = None):
     """Decorator to handle figure creation and theming for plotting methods.
