@@ -106,14 +106,55 @@ class LinearSetImpl[R](Impl[R]):
 class QuadraticSetImpl[R](Impl[R]):
     """Quadratic set primitives: balls, cylinders, ellipsoids."""
 
-    def quadratic(self, coefficients, axes=None, **kwds: Any) -> R:
+    def quadratic(self, A, b=None, c=0.0, axes=None, center=None, **kwds: Any) -> R:
         raise NotImplementedError("QuadraticSetImpl.quadratic is not implemented")
 
     def ball(self, center, radius, axes=None, **kwds: Any) -> R:
-        raise NotImplementedError("QuadraticSetImpl.ball is not implemented")
+        """Euclidean ball as ``||x-center||^2 - radius^2``; delegates to ``quadratic``."""
+        center = [float(v) for v in center]
+        n = len(center)
+        assert radius >= 0, "ball requires a non-negative radius."
+        if axes is None:
+            axes = list(range(n))
+        assert len(list(axes)) == n, "ball expects one axis per center coordinate."
+        A = [[1.0 if i == j else 0.0 for j in range(n)] for i in range(n)]
+        return self.quadratic(
+            A, b=None, c=-float(radius) ** 2, axes=axes, center=center, **kwds,
+        )
 
     def cylinder(self, center, radius, vector, axes=None, **kwds: Any) -> R:
-        raise NotImplementedError("QuadraticSetImpl.cylinder is not implemented")
+        """Infinite cylinder: ``||(x-c) - proj_v(x-c)||^2 - r^2``. Delegates to ``quadratic``."""
+        center = [float(v) for v in center]
+        vector = [float(v) for v in vector]
+        n = len(center)
+        assert len(vector) == n, "cylinder expects vector and center of the same length."
+        assert radius >= 0, "cylinder requires a non-negative radius."
+        if axes is None:
+            axes = list(range(n))
+        assert len(list(axes)) == n, "cylinder expects one axis per center coordinate."
+        norm = math.sqrt(sum(v * v for v in vector))
+        assert norm > 0, "cylinder requires a non-zero axis vector."
+        vhat = [v / norm for v in vector]
+        A = [
+            [(1.0 if i == j else 0.0) - vhat[i] * vhat[j] for j in range(n)]
+            for i in range(n)
+        ]
+        return self.quadratic(
+            A, b=None, c=-float(radius) ** 2, axes=axes, center=center, **kwds,
+        )
 
     def ellipsoid(self, center, radii, axes=None, **kwds: Any) -> R:
-        raise NotImplementedError("QuadraticSetImpl.ellipsoid is not implemented")
+        """Axis-aligned ellipsoid: ``sum ((x_i-c_i)/r_i)^2 - 1``. Delegates to ``quadratic``."""
+        center = [float(v) for v in center]
+        radii = [float(v) for v in radii]
+        n = len(center)
+        assert len(radii) == n, "ellipsoid expects one radius per center coordinate."
+        assert all(r > 0 for r in radii), "ellipsoid requires positive radii."
+        if axes is None:
+            axes = list(range(n))
+        assert len(list(axes)) == n, "ellipsoid expects one axis per center coordinate."
+        A = [
+            [(1.0 / (radii[i] ** 2) if i == j else 0.0) for j in range(n)]
+            for i in range(n)
+        ]
+        return self.quadratic(A, b=None, c=-1.0, axes=axes, center=center, **kwds)
