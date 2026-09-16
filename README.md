@@ -35,24 +35,21 @@ pip install -e ".[hj_reachability]"
 from pyspect.logics import *
 from pyspect.tlt import TLT, ContLTL
 from pyspect.impls.hj_reachability import TVHJImpl
-from pyspect.set_builder import BoundedSet, Union, HalfSpaceSet
+from pyspect.set_builder import AlignedBoxSet, Union, HalfSpaceSet
 
-# 1) Pick primitives/fragment
-TLT.select(ContLTL) # Continuous-time LTL
-
-# 2) Write the spec once
+# 1) Pick primitives/fragment and write the spec
 phi = UNTIL(AND(NOT('D'), 'corridor'), 'goal')   # task: avoid D, stay in corridor, then reach goal
 
-# 3) Bind propositions later via set builders
-tlt = TLT(phi, where={
-    'D': Union(BoundedSet(...), BoundedSet(...)),
-    'corridor': BoundedSet(...),
+# 2) Bind propositions later via set builders
+tlt = TLT(phi, primitives=ContLTL, where={
+    'D': Union(AlignedBoxSet(...), AlignedBoxSet(...)),
+    'corridor': AlignedBoxSet(...),
     'goal': HalfSpaceSet(...),
 })
 
-# 4) Realize on a backend
+# 3) Realize on a backend
 impl = TVHJImpl(...)    # Each implementation can have their own settings
-Phi = tlt.realize(impl) # The satisfaction set in the backend’s representation
+Phi = tlt.realize(impl) # The satisfaction set in the backend's representation
 ```
 
 ## Cite
@@ -92,7 +89,7 @@ For paper examples, checkout branches:
 ### II. Temporal Logic Trees (TLTs)
 > A **TLT** mirrors formula structure with set/reachability nodes, verifying temporal logic using reachability.
 
-1. `TLT.select(Q)` chooses a set of primitives `Q` matching the temporal logic fragment. **Key:** the primitives operationalize the fragment (how we evaluate).
+1. `TLT(..., primitives=Q)` chooses a set of primitives `Q` matching the temporal logic fragment. **Key:** the primitives operationalize the fragment (how we evaluate). `TLT.select(Q)` remains as a class-default shorthand.
 2. `TLT(spec).realize(impl)` constructs and executes a reachability program verifying `spec`.
 
 ### III. Implementations
